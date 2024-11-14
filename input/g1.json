@@ -1,6 +1,19 @@
 {
-  "name": "grammars",
-  "version": "1.0.0",
-  "dependencies": {
-  }
+  "lexicon": {
+    "_": ["=v,c", "=v,+wh,c"],
+    "Aca": ["d"],
+    "Bibi": ["d"],
+    "knows": ["=c,=d,v"],
+    "likes": ["=d,=d,v"],
+    "what": ["d,-wh"],
+    "and": ["=c,=c,c"]
+  },
+  "rules": [
+    "shift",
+    "lc1(merge1)",
+    "c1(lc2(merge2))",
+    "c1(lc1(merge1))",
+    "c(shift)"
+  ],
+  "startCategory": "c"
 }
