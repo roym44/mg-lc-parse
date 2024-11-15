@@ -15,10 +15,15 @@ class MG:
         self.lexicon : dict[str, str] = {} # a mapping between an element and its features
         self.rules : list[LCRule] = [] # a list of LC rules
         self.start_category : str = ''
+        self.link_relations : dict[str, str] = {}
 
+        # Parse the JSON file
         with open(input_file, 'r') as file:
             data = json.load(file)
         self.parse_json(data)
+
+        # Compute the link relations
+        self.compute_link_relations()
 
     def parse_json(self, data):
         """
@@ -36,6 +41,9 @@ class MG:
 
     def __str__(self):
         return f"Lexicon: {self.lexicon}\nRules: {self.rules}"
+
+    def compute_link_relations(self):
+        pass
 
 
 if __name__ == '__main__':
