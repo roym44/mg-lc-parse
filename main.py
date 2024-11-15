@@ -1,3 +1,5 @@
+from time import sleep
+
 from mg import MG
 from lc_rule import LCRule
 from lc_parser import LCParser
@@ -9,7 +11,9 @@ def test_g1():
     rules1 = [
         LCRule('shift([]:[=v,c])')
     ]
+
     results = parser.parse(input1, rules1)
+    sleep(0.1)
     print(f"Results: {results}")
 
 

@@ -1,6 +1,7 @@
 """
 Defines the left-corner parser object
 """
+from loguru import logger
 from dataclasses import dataclass
 from lc_rule import LCRule
 from mg import MG
@@ -46,11 +47,12 @@ class Configuration:
         return self.__str__()
 
     def __str__(self):
-        return f"Pos:{self.current_pos},\tInput: {self.remaining_input},\n\tQueue:{self.get_queue_string()}\n"
+        return f"Pos:{self.current_pos},\tInput: {self.remaining_input},\n\tQueue:{self.get_queue_string()}"
 
 class LCParser:
     def __init__(self, grammar : MG):
         self.grammar = grammar
+        self.logger = logger
 
     def generate_parsing_rules(self):
         """
@@ -78,14 +80,14 @@ class LCParser:
         :return: A list of successful configurations and the applied rules.
         """
         parsing_rules = rules or self.generate_parsing_rules()
-        print(f"Parsing the sentence: {input_str}, Using the rules: {parsing_rules}")
+        self.logger.info(f"Parsing the sentence: {input_str}, Using the rules: {parsing_rules}")
 
         initial_config = Configuration(0, input_str, [])
         stack = [(initial_config, [])]
         results = []
 
         while stack:
-            print(f"--- Stack ---: {stack}")
+            self.logger.info(f"Stack: {stack}")
             config, applied_rules = stack.pop()
             if self.is_success(config):
                 results.append((config, applied_rules))
@@ -95,12 +97,10 @@ class LCParser:
             for rule in parsing_rules:
                 # Skip the empty-shift rule if it has already been applied
                 if rule.is_empty_shift() and rule in applied_rules:
-                    print(f"Skipping rule: {rule} as it has already been applied")
+                    self.logger.info(f"Skipping rule: {rule} as it has already been applied!")
                     continue
 
-                print(f"Applying rule: {rule} to config: {config}")
                 new_config = self.apply_rule(rule, config) # step()
-
                 # if we passed the step (i.e., the oracle check passed), add the new configuration to the stack
                 if new_config != config:
                     stack.append((new_config, applied_rules + [rule]))
@@ -118,6 +118,7 @@ class LCParser:
         :param config: The current parser state.
         :return: Updated configuration after applying the rule.
         """
+        self.logger.info(f"Got rule: {rule} and config: {config}")
         new_pos = config.current_pos
         new_input = config.remaining_input
         new_queue = config.queue
@@ -125,31 +126,37 @@ class LCParser:
 
         # Apply a shift rule
         if rule.is_empty_shift(): # can be applied at any time
-            print("empty-shift")
+            self.logger.info(f"Rule type is empty_shift")
             fs = rule.inner_part.split(':')[1]
             result = self.empty_shift(fs, config.current_pos)
         elif rule.is_shift(): # based on remaining input
-            print("shift")
+            self.logger.info(f"Rule type is shift")
             result, new_pos, new_input = self.shift(config.remaining_input, config.current_pos)
 
         # Apply the LC rule to the queue's focus element
         elif rule.is_lc():
-            print("lc")
+            self.logger.info(f"Rule type is lc")
             focus, *remaining_queue = config.queue  # unpack the queue
             result = self.lc(rule, focus)
             new_queue = remaining_queue
 
         # Apply the inner lc rule; than composeOrNot()
         elif rule.is_comp():
-            print("comp")
+            self.logger.info(f"apply_rule(): Rule type is comp")
         else:
-            raise ValueError(f"Unknown rule type: {rule}")
+            raise ValueError(f"apply_rule(): Unknown rule type: {rule}")
 
+
+        if result is None:
+            self.logger.info("No result after applying the rule! returning same config")
+            return config
 
         # Update queue with the result if oracle check passes
         if self.oracle_ok(new_queue, result):
+            self.logger.info("Passed the oracle check! returning new config")
             return Configuration(new_pos, new_input, [result] + new_queue)
         # If the oracle fails, return the configuration unchanged for now
+        self.logger.info("Failed the oracle check! returning same config")
         return config
 
 
