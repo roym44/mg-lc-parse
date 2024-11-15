@@ -1,6 +1,6 @@
 {
   "lexicon": {
-    "_": ["=v,c", "=v,+wh,c"],
+    "": ["=v,c", "=v,+wh,c"],
     "Aca": ["d"],
     "Bibi": ["d"],
     "knows": ["=c,=d,v"],
@@ -17,3 +17,4 @@
   ],
   "startCategory": "c"
 }
+

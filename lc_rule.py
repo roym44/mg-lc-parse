@@ -1,9 +1,9 @@
 """
 Defines the LCRule class, which is used to represent a rule in the LC grammar.
 There are three types of rules:
-1. shift
-2. lc1/lc2 that wrap merge/move
-3. c/c1/c2/c3 that wrap the rest of the rules
+1. shift (empty/regular)
+2. lc1/lc2 that wrap merge/move rules
+3. c/c1/c2/c3 that wrap any other rule
 """
 
 
@@ -35,11 +35,28 @@ class LCRule:
     def is_shift(self):
         return self.lc_rule == 'shift'
 
+    def is_empty_shift(self):
+        """
+        An empty-shift rule is a shift rule that operates on the empty string (epsilon), e.g., shift([]),
+        this has no dependency on the input string, and can be applied at any time.
+        This is opposed to a shift rule that operates on a non-empty lexical item, e.g., shift([Aca]),
+        which is taken from the remaining input during parsing.
+        """
+        return self.is_shift() and self.inner_part.startswith('[]')
+
     def is_lc(self):
         return not self.is_shift()
 
     def is_comp(self):
         return self.comp_rule is not None
+
+    def set_inner_part(self, inner_part):
+        """
+        Sets the inner part of the rule.
+        This is mainly used for SHIFT rules, since we want to store the features of the shift:
+        e.g., shift([], [=v,c]) will have the inner part as '[], [=v,c]'
+        """
+        self.inner_part = inner_part
 
     def __repr__(self):
         return self.__str__()
@@ -72,3 +89,9 @@ if __name__ == '__main__':
     print(lcr4.is_shift())
     print(lcr4.is_lc())
     print(lcr4.is_comp())
+
+    lcr5 = LCRule('shift([], [=v,c])')
+    print(repr(lcr5))
+    print(lcr5.is_shift())
+    print(lcr5.is_lc())
+    print(lcr5.is_comp())
