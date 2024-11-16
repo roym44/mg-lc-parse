@@ -221,10 +221,15 @@ class LCParser:
         :return: The new result term; None if the rule does not apply.
         """
         self.logger.info(f"focus={focus}")
+        # Make sure the focus is a single expression
+        if not focus.is_single():
+            return None
+        exp = focus.exp
+
         # Apply the appropriate LC rule to the focus element
         if rule.lc_rule == 'lc1':
             if rule.inner_part == 'merge1':
-                return self.lc1_merge1(focus)
+                return self.lc1_merge1(exp)
             elif rule.inner_part == 'merge2':
                 return self.lc1_merge2(focus)
             elif rule.inner_part == 'merge3':
@@ -235,22 +240,17 @@ class LCParser:
                 return self.lc1_move2(focus)
         elif rule.lc_rule == 'lc2':
             if rule.inner_part == 'merge2':
-                return self.lc2_merge2(focus)
+                return self.lc2_merge2(exp)
             elif rule.inner_part == 'merge3':
                 return self.lc2_merge3(focus)
 
-    def lc1_merge1(self, focus : Term) -> Term:
+    def lc1_merge1(self, B : Expression) -> Term:
         """
         (Left, Mid, '::', [=F|Gamma], []),
         ( (Mid, Right, _,  [F], Alphas) -> (Left, Right, ':', Gamma, Alphas) ))
         :param focus:
         :return:
         """
-        # Make sure the focus is a single expression
-        if not focus.is_single():
-            return None
-        B = focus.exp
-
         # Validate match for lc1(merge1)
         if (B.stype != '::') or (not B.features) or (B.features[0].prefix != '=') or (B.movers):
             return None
@@ -265,19 +265,14 @@ class LCParser:
         A = Expression(left, right, ':', gamma, [Feature('_M')])
         return Term(C, A)
 
-    def lc2_merge2(self, focus : Term) -> Term:
+    def lc2_merge2(self, C : Expression) -> Term:
         """
         (Left, Mid, _, [F], Iotas),
         ( ( Mid, Right, ':',  [=F|Gamma], Alphas) -> (Left, Right, ':', Gamma, Movers) ))
         :param focus:
         :return:
         """
-        # Make sure the focus is a single expression
-        if not focus.is_single():
-            return None
-        C = focus.exp
-
-        # Validate match for lc2_merge2
+        # TODO: Validate match for lc2_merge2?
 
         left, mid, right = C.left, C.right, UNKNOWN_POS
 
