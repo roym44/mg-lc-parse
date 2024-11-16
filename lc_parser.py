@@ -47,18 +47,24 @@ class Configuration:
     queue: list[Term]
 
     def get_queue_string(self):
-        elements = '\n\t'.join([str(q) for q in self.queue])
-        return f"[{elements}]"
+        elements = '\t'.join([str(q) for q in self.queue])
+        return f"§{elements}§"
     def __repr__(self):
         return self.__str__()
 
     def __str__(self):
-        return f"Pos:{self.current_pos},\tInput: {self.remaining_input},\n\tQueue:{self.get_queue_string()}"
+        return f"Pos:{self.current_pos},\tInput: {self.remaining_input},\tQueue:{self.get_queue_string()}"
 
 class LCParser:
     def __init__(self, grammar : MG):
         self.grammar = grammar
         self.logger = logger
+
+    def log_stack(self, stack):
+        stack_str = 'STACK:\n'
+        for config, applied_rules in stack:
+            stack_str += f"Config: {config}, Rules: {applied_rules}\n"
+        self.logger.warning(stack_str)
 
     def generate_parsing_rules(self):
         """
@@ -67,11 +73,11 @@ class LCParser:
         :return: A list of parsing rules.
         """
         parsing_rules = self.grammar.rules
-        empty_string_features = self.grammar.lexicon[""]
-        # Add the empty-shift rule for each feature
-        for f in empty_string_features:
-            # we abuse ':' as a separator between the lexical item and its features
-            parsing_rules.append(LCRule(f"shift([]:[{f}])"))
+        for item in self.grammar.lexicon:
+            # Add the empty-shift rule for each feature
+            if item.element == '':
+                # we abuse ':' as a separator between the lexical item and its features
+                parsing_rules.append(LCRule(f"shift([]:[{item.features}])"))
         return parsing_rules
 
 
@@ -96,7 +102,7 @@ class LCParser:
 
         while stack:
             config, applied_rules = stack.pop()
-            self.logger.info(f"Config: {config}")
+            self.logger.error(f"Popping config {config} with {len(applied_rules)} applied rules {applied_rules}")
             if self.is_success(config):
                 results.append((config, applied_rules))
                 continue
@@ -115,6 +121,7 @@ class LCParser:
                     count = len(applied_rules) + 1
                     self.logger.warning(f"{count}. {rule} {new_config.remaining_input}\n{new_config.queue}")
                     stack.append((new_config, applied_rules + [rule]))
+                    self.log_stack(stack)
 
         return results
 
@@ -129,7 +136,7 @@ class LCParser:
         :param config: The current parser state.
         :return: Updated configuration after applying the rule.
         """
-        self.logger.info(f"Got rule: {rule} and config: {config}")
+        self.logger.info(f"Got rule: {rule}, config: {config}")
         new_pos = config.current_pos
         new_input = config.remaining_input
         new_queue = config.queue
@@ -178,37 +185,40 @@ class LCParser:
     def empty_shift(self, fs, pos) -> Term:
         """
         Empty shift operation: moves an empty element to the queue.
+        shift(Input,Input,shift([],Fs),Pos,Pos,(Pos,Pos,'::',Fs,[])) :- ([]::Fs).
+
         :param fs: Features of the empty element, as concatenated string (e.g., '=v,+wh,c')
         :param pos: Current position in the input.
         :return: The new result term.
         """
-        self.logger.info(f"fs={fs}, pos={pos}")
+        self.logger.info(f"fs = [{fs}], pos = {pos}")
         features = parse_features(fs)
         result = Expression(pos, pos, '::', features, [])
         return Term(result)
 
-    def shift(self, input_data, pos) -> Term:
+    def shift(self, input_data, pos) -> (Term, int, list[str]):
         """
         Shift operation: moves an element from input to the queue.
+        shift([W|Input],Input,shift([W],Fs),Pos0,Pos,(Pos0,Pos,'::',Fs,[])) :- ([W]::Fs), Pos is Pos0+1.
+
         :param input_data: List of tokens representing the remaining input.
         :param pos: Current position in the input.
         :return: A tuple with the result of shift (new queue element), updated position,
                  and the remaining input after the shift.
         """
-        if input_data:  # Ensure there's something to shift
-            shifted_token = input_data[0]
-
-            # Create the new queue element as a tuple including position, span, features, etc.
-            # TODO: make sure to include the correct features for the token and use it later on
-            # For simplicity, assume each token has features associated with it in the lexicon.
-            result = (pos, pos + 1, '::', [shifted_token], [])
-            new_pos = pos + 1
-            remaining_input = input_data[1:]
-
-            return result, new_pos, remaining_input
-        else:
-            # If there's nothing left to shift, return None or handle it as needed
+        if not input_data:
             return None, pos, input_data
+
+        W = input_data[0]
+        new_input = input_data[1:]
+
+        # TODO: make sure to include the correct features for the token and use it later on
+        # For simplicity, assume each token has features associated with it in the lexicon.
+        new_pos = pos + 1
+        fs = self.grammar.get_lexicon_item(W).features
+        result = Expression(pos, new_pos, '::', fs, [])
+        return Term(result), new_pos, new_input
+
 
 
     def lc(self, rule, focus : Term) -> Term:
@@ -240,6 +250,7 @@ class LCParser:
         """
         (Left, Mid, '::', [=F|Gamma], []),
         ( (Mid, Right, _,  [F], Alphas) -> (Left, Right, ':', Gamma, Alphas) )).
+
         :param focus:
         :return:
         """

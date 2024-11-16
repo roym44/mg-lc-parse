@@ -10,7 +10,8 @@ def test_g1():
     input1 = ['Aca', 'knows', 'what', 'Bibi', 'likes']
     rules1 = [
         LCRule('shift([]:[=v,c])'),
-        LCRule('lc1(merge1)')
+        LCRule('lc1(merge1)'),
+        LCRule('shift'),
     ]
 
     results = parser.parse(input1, rules1)

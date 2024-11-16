@@ -36,7 +36,7 @@ def parse_features(features) -> list[Feature]:
     for fs in features.split(','):
         # Check if the feature has a prefix
         prefix, feature = (fs[0], fs[1:]) if fs.startswith(('=', '+', '-')) else ('', fs[0])
-        fs_list.append(Feature(feature, prefix))
+        fs_list.append(Feature(feature, prefix=prefix))
     return fs_list
 
 class LexItem:
@@ -90,6 +90,16 @@ class MG:
 
         self.start_category = Feature(data.get('start_category'))
 
+    def get_lexicon_item(self, element):
+        """
+        Returns the lexical item with the given element
+        :param element: The element to search for
+        :return: The lexical item with the given element; None if not found
+        """
+        for lex in self.lexicon:
+            if lex.element == element:
+                return lex
+        return None
 
     def __str__(self):
         return f"Lexicon: {self.lexicon}\nRules: {self.rules}"
