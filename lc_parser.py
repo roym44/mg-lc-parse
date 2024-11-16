@@ -209,7 +209,7 @@ class LCParser:
         new_input = input_data[1:]
         new_pos = pos + 1
         fs = self.grammar.get_lexicon_item(W).features
-        
+
         result = Expression(pos, new_pos, '::', fs, [])
         return Term(result), new_pos, new_input
 
@@ -220,6 +220,7 @@ class LCParser:
         :param focus: The focus element in the queue.
         :return: The new result term; None if the rule does not apply.
         """
+        self.logger.info(f"focus={focus}")
         # Apply the appropriate LC rule to the focus element
         if rule.lc_rule == 'lc1':
             if rule.inner_part == 'merge1':
@@ -241,11 +242,10 @@ class LCParser:
     def lc1_merge1(self, focus : Term) -> Term:
         """
         (Left, Mid, '::', [=F|Gamma], []),
-        ( (Mid, Right, _,  [F], Alphas) -> (Left, Right, ':', Gamma, Alphas) )).
+        ( (Mid, Right, _,  [F], Alphas) -> (Left, Right, ':', Gamma, Alphas) ))
         :param focus:
         :return:
         """
-        self.logger.info(f"focus={focus}")
         # Make sure the focus is a single expression
         if not focus.is_single():
             return None
@@ -264,6 +264,33 @@ class LCParser:
         C = Expression(mid, right, UNKNOWN_STYPE, [Feature(f)], [Feature('_M')])
         A = Expression(left, right, ':', gamma, [Feature('_M')])
         return Term(C, A)
+
+    def lc2_merge2(self, focus : Term) -> Term:
+        """
+        (Left, Mid, _, [F], Iotas),
+        ( ( Mid, Right, ':',  [=F|Gamma], Alphas) -> (Left, Right, ':', Gamma, Movers) ))
+        :param focus:
+        :return:
+        """
+        # Make sure the focus is a single expression
+        if not focus.is_single():
+            return None
+        C = focus.exp
+
+        # Validate match for lc2_merge2
+
+        left, mid, right = C.left, C.right, UNKNOWN_POS
+
+        # Extract the feature being selected
+        f = C.features[0].feature  # take 'f'
+        gamma = [Feature('v')] # TODO: should be taken from a rule in the grammar
+        iotas = C.movers
+        alphas = [Feature('_M')]
+        movers = iotas + alphas
+
+        B = Expression(mid, right, ':', [Feature(f, "=")] + gamma, alphas)
+        A = Expression(left, right, ':', gamma, movers)
+        return Term(B, A)
 
 
     def compose_or_not(self, rule, result, queue):

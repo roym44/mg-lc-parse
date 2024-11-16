@@ -12,6 +12,7 @@ def test_g1():
         LCRule('shift([]:[=v,c])'),
         LCRule('lc1(merge1)'),
         LCRule('shift'),
+        LCRule('c1(lc2(merge2))')
     ]
 
     results = parser.parse(input1, rules1)
