@@ -90,14 +90,15 @@ class LCParser:
         results = []
 
         while stack:
-            self.logger.info(f"Stack: {stack}")
             config, applied_rules = stack.pop()
+            self.logger.info(f"Config: {config}")
             if self.is_success(config):
                 results.append((config, applied_rules))
                 continue
 
             # Explore applying each rule to the current configuration
             for rule in parsing_rules:
+                
                 # Skip the empty-shift rule if it has already been applied
                 if rule.is_empty_shift() and rule in applied_rules:
                     self.logger.info(f"Skipping rule: {rule} as it has already been applied!")
@@ -106,6 +107,8 @@ class LCParser:
                 new_config = self.apply_rule(rule, config) # step()
                 # if we passed the step (i.e., the oracle check passed), add the new configuration to the stack
                 if new_config != config:
+                    count = len(applied_rules) + 1
+                    self.logger.warning(f"{count}. {rule} {new_config.remaining_input}\n{new_config.queue}")
                     stack.append((new_config, applied_rules + [rule]))
 
         return results

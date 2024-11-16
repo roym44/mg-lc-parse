@@ -62,7 +62,7 @@ class MG:
         """
         self.lexicon : list[LexItem] = [] # a mapping between an element and its features
         self.rules : list[LCRule] = [] # a list of LC rules
-        self.start_category : str = ''
+        self.start_category : Feature = None
         self.link_relations : dict[str, str] = {}
 
         # Parse the JSON file
@@ -85,7 +85,7 @@ class MG:
         for r in data.get('rules'):
             self.rules.append(LCRule(r))
 
-        self.start_category = data.get('start_category')
+        self.start_category = Feature('', data.get('start_category'))
 
 
     def __str__(self):
