@@ -6,17 +6,19 @@ from dataclasses import dataclass
 from lc_rule import LCRule
 from mg import MG, Feature, LexItem, parse_features
 
+UNKNOWN_POS = 99
+UNKNOWN_STYPE = '.'
 
 @dataclass
 class Expression:
-    left: int
-    right: int
-    tp: str
+    left: int # left position
+    right: int # right position
+    stype: str # : or ::
     features: list[Feature]
     movers: list[Feature]
 
     def __str__(self):
-        return f"({self.left}-{self.right}{self.tp} {self.features} {self.movers})"
+        return f"({self.left}-{self.right}{self.stype} {self.features} {self.movers})"
 
     def __repr__(self):
         return str(self)
@@ -27,9 +29,12 @@ class Term:
     exp: Expression
     output_exp: Expression = None
 
+    def is_single(self) -> bool:
+        return self.output_exp is None
+
     def __str__(self):
         if self.output_exp:
-            return f"{self.exp} -> {self.output_exp}"
+            return f"{self.exp} => {self.output_exp}"
         return f"{self.exp}"
 
     def __repr__(self):
@@ -98,7 +103,7 @@ class LCParser:
 
             # Explore applying each rule to the current configuration
             for rule in parsing_rules:
-                
+
                 # Skip the empty-shift rule if it has already been applied
                 if rule.is_empty_shift() and rule in applied_rules:
                     self.logger.info(f"Skipping rule: {rule} as it has already been applied!")
@@ -132,17 +137,19 @@ class LCParser:
 
         # Apply a shift rule
         if rule.is_empty_shift(): # can be applied at any time
-            self.logger.info(f"Rule type is empty_shift")
             # get the features of the empty lexical item
             fs = rule.inner_part.split(':')[1].strip('[]')
             result = self.empty_shift(fs, config.current_pos)
+
         elif rule.is_shift(): # based on remaining input
-            self.logger.info(f"Rule type is shift")
             result, new_pos, new_input = self.shift(config.remaining_input, config.current_pos)
 
         # Apply the LC rule to the queue's focus element
         elif rule.is_lc():
-            self.logger.info(f"Rule type is lc")
+            if not config.queue:
+                self.logger.info("No focus element in the queue! returning same config")
+                return config
+
             focus, *remaining_queue = config.queue  # unpack the queue
             result = self.lc(rule, focus)
             new_queue = remaining_queue
@@ -162,22 +169,29 @@ class LCParser:
         if self.oracle_ok(new_queue, result):
             self.logger.info("Passed the oracle check! returning new config")
             return Configuration(new_pos, new_input, [result] + new_queue)
+
         # If the oracle fails, return the configuration unchanged for now
         self.logger.info("Failed the oracle check! returning same config")
         return config
 
 
     def empty_shift(self, fs, pos) -> Term:
+        """
+        Empty shift operation: moves an empty element to the queue.
+        :param fs: Features of the empty element, as concatenated string (e.g., '=v,+wh,c')
+        :param pos: Current position in the input.
+        :return: The new result term.
+        """
+        self.logger.info(f"fs={fs}, pos={pos}")
         features = parse_features(fs)
         result = Expression(pos, pos, '::', features, [])
         return Term(result)
 
-    def shift(self, input_data, position):
+    def shift(self, input_data, pos) -> Term:
         """
         Shift operation: moves an element from input to the queue.
-
         :param input_data: List of tokens representing the remaining input.
-        :param position: Current position in the input.
+        :param pos: Current position in the input.
         :return: A tuple with the result of shift (new queue element), updated position,
                  and the remaining input after the shift.
         """
@@ -187,14 +201,70 @@ class LCParser:
             # Create the new queue element as a tuple including position, span, features, etc.
             # TODO: make sure to include the correct features for the token and use it later on
             # For simplicity, assume each token has features associated with it in the lexicon.
-            result = (position, position + 1, '::', [shifted_token], [])
-            new_position = position + 1
+            result = (pos, pos + 1, '::', [shifted_token], [])
+            new_pos = pos + 1
             remaining_input = input_data[1:]
 
-            return result, new_position, remaining_input
+            return result, new_pos, remaining_input
         else:
             # If there's nothing left to shift, return None or handle it as needed
-            return None, position, input_data
+            return None, pos, input_data
+
+
+    def lc(self, rule, focus : Term) -> Term:
+        """
+        Apply the appropriate LC rule to the focus element.
+        :param rule: The LC rule to apply.
+        :param focus: The focus element in the queue.
+        :return: The new result term; None if the rule does not apply.
+        """
+        # Apply the appropriate LC rule to the focus element
+        if rule.lc_rule == 'lc1':
+            if rule.inner_part == 'merge1':
+                return self.lc1_merge1(focus)
+            elif rule.inner_part == 'merge2':
+                return self.lc1_merge2(focus)
+            elif rule.inner_part == 'merge3':
+                return self.lc1_merge3(focus)
+            elif rule.inner_part == 'move1':
+                return self.lc1_move1(focus)
+            elif rule.inner_part == 'move2':
+                return self.lc1_move2(focus)
+        elif rule.lc_rule == 'lc2':
+            if rule.inner_part == 'merge2':
+                return self.lc2_merge2(focus)
+            elif rule.inner_part == 'merge3':
+                return self.lc2_merge3(focus)
+
+    def lc1_merge1(self, focus : Term) -> Term:
+        """
+        (Left, Mid, '::', [=F|Gamma], []),
+        ( (Mid, Right, _,  [F], Alphas) -> (Left, Right, ':', Gamma, Alphas) )).
+        :param focus:
+        :return:
+        """
+        self.logger.info(f"focus={focus}")
+
+        # Make sure the focus is a single expression
+        if not focus.is_single():
+            return None
+        B = focus.exp
+
+        # Validate match for lc1(merge1)
+        #
+        if (B.stype != '::') or (not B.features) or (B.features[0].prefix != '=') or (B.movers):
+            return None
+
+        left, mid, right = B.left, B.right, UNKNOWN_POS
+
+        # Extract the feature being selected
+        f = B.features[0].feature  # take 'f' from '=f'
+        gamma = B.features[1:]  # Remaining features after `=F`
+
+        C = Expression(mid, right, UNKNOWN_STYPE, [Feature(f)], [Feature('_M')])
+        A = Expression(left, right, ':', gamma, [Feature('_M')])
+        return Term(C, A)
+
 
     def compose_or_not(self, rule, result, queue):
         """
@@ -212,3 +282,4 @@ class LCParser:
     # def print_config(self, count, rule, config):
     #    print(f"{count}. {rule}")
     #    print(config)
+

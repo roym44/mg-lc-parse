@@ -10,8 +10,8 @@ from lc_rule import LCRule
 
 @dataclass
 class Feature:
-    prefix: str
     feature: str
+    prefix: str = ''
 
     def is_selector(self):
         return self.prefix == '='
@@ -21,6 +21,9 @@ class Feature:
 
     def is_licensee(self):
         return self.prefix == '-'
+
+    def is_variable(self):
+        return self.prefix == '_'
 
     def __str__(self):
         return f"{self.prefix}{self.feature}"
@@ -33,7 +36,7 @@ def parse_features(features) -> list[Feature]:
     for fs in features.split(','):
         # Check if the feature has a prefix
         prefix, feature = (fs[0], fs[1:]) if fs.startswith(('=', '+', '-')) else ('', fs[0])
-        fs_list.append(Feature(prefix, feature))
+        fs_list.append(Feature(feature, prefix))
     return fs_list
 
 class LexItem:
@@ -85,7 +88,7 @@ class MG:
         for r in data.get('rules'):
             self.rules.append(LCRule(r))
 
-        self.start_category = Feature('', data.get('start_category'))
+        self.start_category = Feature(data.get('start_category'))
 
 
     def __str__(self):
