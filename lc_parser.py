@@ -102,7 +102,8 @@ class LCParser:
 
         while stack:
             config, applied_rules = stack.pop()
-            self.logger.error(f"Popping config {config} with {len(applied_rules)} applied rules {applied_rules}")
+            count = len(applied_rules)
+            self.logger.error(f"Popping {config} with {count} applied rules {applied_rules}")
             if self.is_success(config):
                 results.append((config, applied_rules))
                 continue
@@ -118,8 +119,7 @@ class LCParser:
                 new_config = self.apply_rule(rule, config) # step()
                 # if we passed the step (i.e., the oracle check passed), add the new configuration to the stack
                 if new_config != config:
-                    count = len(applied_rules) + 1
-                    self.logger.warning(f"{count}. {rule} {new_config.remaining_input}\n{new_config.queue}")
+                    self.logger.warning(f"{count + 1}. {rule} {new_config.remaining_input}\n{new_config.queue}")
                     stack.append((new_config, applied_rules + [rule]))
                     self.log_stack(stack)
 
@@ -156,7 +156,6 @@ class LCParser:
             if not config.queue:
                 self.logger.info("No focus element in the queue! returning same config")
                 return config
-
             focus, *remaining_queue = config.queue  # unpack the queue
             result = self.lc(rule, focus)
             new_queue = remaining_queue
@@ -166,7 +165,6 @@ class LCParser:
             self.logger.info(f"apply_rule(): Rule type is comp")
         else:
             raise ValueError(f"apply_rule(): Unknown rule type: {rule}")
-
 
         if result is None:
             self.logger.info("No result after applying the rule! returning same config")
@@ -186,7 +184,6 @@ class LCParser:
         """
         Empty shift operation: moves an empty element to the queue.
         shift(Input,Input,shift([],Fs),Pos,Pos,(Pos,Pos,'::',Fs,[])) :- ([]::Fs).
-
         :param fs: Features of the empty element, as concatenated string (e.g., '=v,+wh,c')
         :param pos: Current position in the input.
         :return: The new result term.
@@ -200,7 +197,6 @@ class LCParser:
         """
         Shift operation: moves an element from input to the queue.
         shift([W|Input],Input,shift([W],Fs),Pos0,Pos,(Pos0,Pos,'::',Fs,[])) :- ([W]::Fs), Pos is Pos0+1.
-
         :param input_data: List of tokens representing the remaining input.
         :param pos: Current position in the input.
         :return: A tuple with the result of shift (new queue element), updated position,
@@ -211,15 +207,11 @@ class LCParser:
 
         W = input_data[0]
         new_input = input_data[1:]
-
-        # TODO: make sure to include the correct features for the token and use it later on
-        # For simplicity, assume each token has features associated with it in the lexicon.
         new_pos = pos + 1
         fs = self.grammar.get_lexicon_item(W).features
+        
         result = Expression(pos, new_pos, '::', fs, [])
         return Term(result), new_pos, new_input
-
-
 
     def lc(self, rule, focus : Term) -> Term:
         """
@@ -250,19 +242,16 @@ class LCParser:
         """
         (Left, Mid, '::', [=F|Gamma], []),
         ( (Mid, Right, _,  [F], Alphas) -> (Left, Right, ':', Gamma, Alphas) )).
-
         :param focus:
         :return:
         """
         self.logger.info(f"focus={focus}")
-
         # Make sure the focus is a single expression
         if not focus.is_single():
             return None
         B = focus.exp
 
         # Validate match for lc1(merge1)
-        #
         if (B.stype != '::') or (not B.features) or (B.features[0].prefix != '=') or (B.movers):
             return None
 
