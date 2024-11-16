@@ -32,10 +32,10 @@ class LCRule:
             self.lc_rule = split[0]
             self.inner_part = split[1].rstrip(')')
 
-    def is_shift(self):
+    def is_shift(self) -> bool:
         return self.lc_rule == 'shift'
 
-    def is_empty_shift(self):
+    def is_empty_shift(self) -> bool:
         """
         An empty-shift rule is a shift rule that operates on the empty string (epsilon), e.g., shift([]),
         this has no dependency on the input string, and can be applied at any time.
@@ -44,10 +44,10 @@ class LCRule:
         """
         return self.is_shift() and self.inner_part.startswith('[]')
 
-    def is_lc(self):
+    def is_lc(self) -> bool:
         return not self.is_shift()
 
-    def is_comp(self):
+    def is_comp(self) -> bool:
         return self.comp_rule is not None
 
     def set_inner_part(self, inner_part):
@@ -58,12 +58,12 @@ class LCRule:
         """
         self.inner_part = inner_part
 
-    def __repr__(self):
-        return self.__str__()
-        # return f"{self.raw_rule} § comp={self.comp_rule} lc={self.lc_rule} inner={self.inner_part}"
-
     def __str__(self):
         return self.raw_rule
+
+    def __repr__(self):
+        # return f"{self.raw_rule} § comp={self.comp_rule} lc={self.lc_rule} inner={self.inner_part}"
+        return str(self)
 
 if __name__ == '__main__':
     lcr1 = LCRule('shift')

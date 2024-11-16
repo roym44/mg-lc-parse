@@ -4,15 +4,16 @@ Defines the left-corner parser object
 from loguru import logger
 from dataclasses import dataclass
 from lc_rule import LCRule
-from mg import MG
+from mg import MG, Feature, LexItem, parse_features
+
 
 @dataclass
 class Expression:
     left: int
     right: int
     tp: str
-    features: str # TODO: list[str]
-    movers: str
+    features: list[Feature]
+    movers: list[Feature]
 
     def __str__(self):
         return f"({self.left}-{self.right}{self.tp} {self.features} {self.movers})"
@@ -80,7 +81,9 @@ class LCParser:
         :return: A list of successful configurations and the applied rules.
         """
         parsing_rules = rules or self.generate_parsing_rules()
-        self.logger.info(f"Parsing the sentence: {input_str}, Using the rules: {parsing_rules}")
+        self.logger.info(f"Parsing the sentence: {input_str}")
+        self.logger.info(f"Using the rules: {parsing_rules}")
+        self.logger.info(f"Using the grammar: {self.grammar}")
 
         initial_config = Configuration(0, input_str, [])
         stack = [(initial_config, [])]
@@ -127,7 +130,8 @@ class LCParser:
         # Apply a shift rule
         if rule.is_empty_shift(): # can be applied at any time
             self.logger.info(f"Rule type is empty_shift")
-            fs = rule.inner_part.split(':')[1]
+            # get the features of the empty lexical item
+            fs = rule.inner_part.split(':')[1].strip('[]')
             result = self.empty_shift(fs, config.current_pos)
         elif rule.is_shift(): # based on remaining input
             self.logger.info(f"Rule type is shift")
@@ -161,7 +165,8 @@ class LCParser:
 
 
     def empty_shift(self, fs, pos) -> Term:
-        result = Expression(pos, pos, '::', fs, '')
+        features = parse_features(fs)
+        result = Expression(pos, pos, '::', features, [])
         return Term(result)
 
     def shift(self, input_data, position):
