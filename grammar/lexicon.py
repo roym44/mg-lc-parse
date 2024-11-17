@@ -23,6 +23,9 @@ class Feature:
     def __str__(self):
         return f"{self.prefix}{self.feature}"
 
+    def __repr__(self):
+        return str(self)
+
 
 def parse_features(features) -> list[Feature]:
     fs_list = []
@@ -45,6 +48,9 @@ class LexItem:
 
     def __str__(self):
         return f"{repr(self.element)} :: {self.features}"
+
+    def __repr__(self):
+        return str(self)
 
 
 

@@ -48,7 +48,7 @@ class LCRule:
         return not self.is_shift()
 
     def is_comp(self) -> bool:
-        return self.comp_rule is not None
+        return self.comp_rule != ''
 
     def set_inner_part(self, inner_part):
         """

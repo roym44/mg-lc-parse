@@ -15,7 +15,9 @@ def test_g1():
         LCRule('c1(lc2(merge2))')
     ]
 
-    results = parser.parse(input1, rules1)
+    # shift([]:[=v,c]), lc1(merge1), shift
+    # result=(1-99: [=d, v] [_M]) => (0-99: [v] [_M])
+    results = parser.parse(input1, rules=rules1, manual=True)
     sleep(0.1)
     print(f"Results: {results}")
 

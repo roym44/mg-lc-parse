@@ -54,7 +54,7 @@ class LCParser:
         return parsing_rules
 
 
-    def parse(self, input_str : list[str], rules : list[LCRule] =None):
+    def parse(self, input_str : list[str], rules : list[LCRule] =None, manual=False):
         """
         Parse the input string using the provided rules.
         This is of course different from the Prolog version, we do not define parse_steps()
@@ -62,6 +62,7 @@ class LCParser:
         That is why we don't keep track of the count per successful derivation, but we can add it if needed.
         :param input_str: The input string to parse as a list of tokens, (e.g., ['John', 'likes', 'Mary'])
         :param rules: Optional rules to use for parsing; if not provided, use the grammar's rules.
+        :param manual: Apply rules in a linear, manual order (as in the paper).
         :return: A list of successful configurations and the applied rules.
         """
         parsing_rules = rules or self.generate_parsing_rules()
@@ -81,9 +82,18 @@ class LCParser:
                 results.append((config, applied_rules))
                 continue
 
+            if manual:
+                rule = parsing_rules.pop(0)
+                new_config = self.apply_rule(rule, config)  # step()
+                # if we passed the step (i.e., the oracle check passed), add the new configuration to the stack
+                if new_config != config:
+                    self.logger.warning(f"{count + 1}. {rule} {new_config.remaining_input}\n{new_config.queue}")
+                    stack.append((new_config, applied_rules + [rule]))
+                    self.log_stack(stack)
+                continue
+
             # Explore applying each rule to the current configuration
             for rule in parsing_rules:
-
                 # Skip the empty-shift rule if it has already been applied
                 if rule.is_empty_shift() and rule in applied_rules:
                     self.logger.info(f"Skipping rule: {rule} as it has already been applied!")
@@ -110,21 +120,21 @@ class LCParser:
         :return: Updated configuration after applying the rule.
         """
         self.logger.info(f"Got rule: {rule}, config: {config}")
-        new_pos = config.current_pos
-        new_input = config.remaining_input
-        new_queue = config.queue
+        new_pos, new_input = config.current_pos, config.remaining_input
+        updated_queue = config.queue
         result : Term = None
 
-        # Apply a shift rule - no changes for (pos, input, queue)
+        # ~~~ STEP 1: HANDLE SHIFT/LC RULES ~~~
+
+        # Apply a shift rule - no changes for (pos, input), update (original queue)
         if rule.is_empty_shift(): # can be applied at any time
             # get the features of the empty lexical item
             fs = rule.inner_part.split(':')[1].strip('[]')
             result = self.empty_shift(fs, config.current_pos)
 
-        # Apply a shift rule - new (pos, input, queue)
+        # Apply a shift rule - new (pos, input), update (original queue)
         elif rule.is_shift(): # based on remaining input
             result, new_pos, new_input = self.shift(config.remaining_input, config.current_pos)
-            new_queue = [result] + config.queue
 
         # Apply the LC rule to the focus - no changes for (pos, input), new (queue)
         elif rule.is_lc():
@@ -133,16 +143,25 @@ class LCParser:
                 return config
             focus, *remaining_queue = config.queue  # unpack the queue
             result = self.lc(rule, focus)
-            new_queue = [result] + remaining_queue
-
-        # Apply the comp rule - no changes for (pos, input), new (queue)
-        elif rule.is_comp():
-            result, new_queue = self.comp(rule, result, new_queue)
-        else:
-            raise ValueError(f"apply_rule(): Unknown rule type: {rule}")
+            new_pos, new_input = config.current_pos, config.remaining_input
+            updated_queue = remaining_queue
 
         if result is None:
-            self.logger.info("No result after applying the rule! returning same config")
+            self.logger.info(f"No result after applying {rule}! returning same config")
+            return config
+
+        # ~~~ STEP 2: HANDLE COMPOSITION ~~~
+
+        # Apply the comp rule - no changes for (pos, input), new (queue)
+        if rule.is_comp():
+            # we have the result waiting for us to complete a prediction
+            result, new_queue = self.comp(rule, result, updated_queue)
+        # just insert the new result to the queue
+        else:
+            new_queue = [result] + updated_queue
+
+        if result is None:
+            self.logger.info(f"No result after applying {rule}! returning same config")
             return config
 
         if self.oracle_ok(new_queue, result):
@@ -258,20 +277,54 @@ class LCParser:
         return Term(B, A)
 
 
-    def comp(self, rule : LCRule, result : Term, new_queue : Queue) -> (Term, Queue):
+    def comp(self, rule : LCRule, result : Term, queue : Queue) -> (Term, Queue):
         self.logger.info(f"result={result}")
+        self.logger.info(f"queue={queue}")
         # Make sure the result is (exp -> exp)
         if result.is_single():
-            return None
+            return None, queue
 
         if rule.comp_rule == 'c1':
-            return self.c1(result, new_queue)
+            return self.c1(result, queue)
         elif rule.comp_rule == 'c2':
-            return self.c2(result, new_queue)
+            return self.c2(result, queue)
         elif rule.comp_rule == 'c3':
-            return self.c3(result, new_queue)
+            return self.c3(result, queue)
         elif rule.comp_rule == 'c':
-            return self.c(result, new_queue)
+            return self.c(result, queue)
+
+
+    def select(self, exp : Expression, queue : Queue, left=True) -> Term:
+        for term in queue:
+            # found on left side
+            if left and term.exp == exp:
+                return term
+            # found on right side
+            if term.output_exp == exp:
+                return term
+        return None
+
+    def c1(self, AtB : Term, queue : Queue) -> (Term, Queue):
+        """
+        % forward composition
+        composeOrNot(R,(A -> B),c1(R),(A -> C),Queue0,Queue) :- select((B -> C), Queue0, Queue),
+        """
+        A, B = AtB.exp, AtB.output_exp
+
+        # look for (B => C) in the queue
+        BtC = self.select(B, queue, left=True)
+        if BtC is None:
+            return None, queue
+
+        new_queue = queue.remove(BtC)
+        C = BtC.output_exp
+
+        # add (A => C)
+        AtC = Term(A, C)
+        return AtC, new_queue
+
+
+
 
 
     def oracle_ok(self, new_queue, result):
@@ -280,7 +333,3 @@ class LCParser:
     # def print_config(self, count, rule, config):
     #    print(f"{count}. {rule}")
     #    print(config)
-    def c1(self, result : Term, new_queue : Queue) -> (Term, Queue):
-        pass
-
-

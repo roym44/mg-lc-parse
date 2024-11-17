@@ -13,6 +13,9 @@ class Expression:
     def __str__(self):
         return f"({self.left}-{self.right}{self.stype} {self.features} {self.movers})"
 
+    def __repr__(self):
+        return str(self)
+
 
 @dataclass
 class Term:
@@ -26,5 +29,8 @@ class Term:
         if self.output_exp:
             return f"{self.exp} => {self.output_exp}"
         return f"{self.exp}"
+
+    def __repr__(self):
+        return str(self)
 
 
