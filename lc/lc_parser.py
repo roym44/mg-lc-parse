@@ -49,7 +49,7 @@ class LCParser:
             # Add the empty-shift rule for each feature
             if item.element == '':
                 # we abuse ':' as a separator between the lexical item and its features
-                parsing_rules.append(LCRule(f"shift([]:[{item.features}])"))
+                parsing_rules.append(LCRule(f"shift([]:{item.features})".replace(' ', '')))
         return parsing_rules
 
 
@@ -72,11 +72,13 @@ class LCParser:
         initial_config = Configuration(0, input_str, [])
         stack = [(initial_config, [])]
         results = []
+        config_count = 0
 
         while stack:
             config, applied_rules = stack.pop()
+            config_count += 1
             count = len(applied_rules)
-            self.logger.error(f"Popping {config} with {count} applied rules {applied_rules}")
+            self.logger.error(f"Popping {config} No.{config_count} with {count} applied rules {applied_rules}")
             if self.is_success(config):
                 results.append((config, applied_rules))
                 continue
@@ -100,6 +102,11 @@ class LCParser:
                     self.logger.info(f"Skipping rule: {rule} as it has already been applied!")
                     continue
 
+                if applied_rules and (rule.is_empty_shift() or rule.is_shift()) and \
+                        (applied_rules[-1].is_empty_shift() or applied_rules[-1].is_shift()):
+                    self.logger.info(f"Skipping rule: {rule} because it follows a shift rule!")
+                    continue
+
                 new_config = self.apply_rule(rule, config) # step()
                 # if we passed the step (i.e., the oracle check passed), add the new configuration to the stack
                 if new_config != config:
@@ -107,6 +114,8 @@ class LCParser:
                     stack.append((new_config, applied_rules + [rule]))
                     self.log_stack(stack)
 
+        self.logger.info(f"Finished parsing. Found {len(results)} successful derivations, "
+                         f"after {config_count} configurations.")
         return results
 
 

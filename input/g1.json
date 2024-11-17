@@ -13,7 +13,10 @@
     "lc1(merge1)",
     "c1(lc2(merge2))",
     "c1(lc1(merge1))",
-    "c(shift)"
+    "lc2(merge3)",
+    "c3(lc2(merge2))",
+    "c(shift)",
+    "c(lc1(move1))"
   ],
   "startCategory": "c"
 }
