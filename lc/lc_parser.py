@@ -8,9 +8,8 @@ from dataclasses import dataclass
 from grammar.lexicon import Feature, parse_features
 from grammar.mg import MG
 from lc.lc_rule import LCRule
-from lc.lc_configuration import Expression, Term, UNKNOWN_STYPE
+from lc.lc_configuration import Expression, Term, UNKNOWN_STYPE, UNKNOWN_POS
 
-UNKNOWN_POS = 99 # replaces '_' position from the paper
 
 Queue = List[Term]
 
@@ -238,12 +237,12 @@ class LCParser:
             if rule.inner_part == 'merge2':
                 return self.lc2_merge2(exp)
             elif rule.inner_part == 'merge3':
-                return self.lc2_merge3(focus)
+                return self.lc2_merge3(exp)
 
     def lc1_merge1(self, B : Expression) -> Term:
         """
-        (Left, Mid, '::', [=F|Gamma], []),
-        ( (Mid, Right, _,  [F], Alphas) -> (Left, Right, ':', Gamma, Alphas) ))
+        s (Left, Mid, '::', [=F|Gamma], []),
+        ( t (Mid, Right, _,  [F], Alphas) -> st (Left, Right, ':', Gamma, Alphas) ))
         """
         # Validate match for lc1(merge1)
         if (B.stype != '::') or (not B.features) or (B.features[0].prefix != '=') or (B.movers):
@@ -253,16 +252,17 @@ class LCParser:
 
         # Extract the feature being selected
         f = B.features[0].feature  # take 'f' from '=f'
-        gamma = B.features[1:]  # Remaining features after `=F`
+        gamma = B.features[1:]  # Remaining features after '=F'
+        alphas = [Expression(stype='_M')]
 
-        C = Expression(mid, right, UNKNOWN_STYPE, [Feature(f)], [Feature('_M')])
-        A = Expression(left, right, ':', gamma, [Feature('_M')])
+        C = Expression(mid, right, UNKNOWN_STYPE, [Feature(f)], alphas)
+        A = Expression(left, right, ':', gamma, alphas)
         return Term(C, A)
 
     def lc2_merge2(self, C : Expression) -> Term:
         """
-        (Left, Mid, _, [F], Iotas),
-        ( ( Mid, Right, ':',  [=F|Gamma], Alphas) -> (Left, Right, ':', Gamma, Movers) ))
+        t (Left, Mid, _, [F], Iotas),
+        ( s ( Mid, Right, ':',  [=F|Gamma], Alphas) -> ts (Left, Right, ':', Gamma, Movers) ))
         """
         # TODO: Validate match for lc2_merge2?
 
@@ -270,13 +270,34 @@ class LCParser:
 
         # Extract the feature being selected
         f = C.features[0].feature  # take 'f'
-        gamma = [Feature('v')] # TODO: should be taken from a rule in the grammar
         iotas = C.movers
-        alphas = [Feature('_M')]
-        movers = iotas + alphas
+        gamma = [Feature('v')] # TODO: should be taken from a rule in the grammar
+        alphas = [Expression(stype='_M')]
+        movers = alphas + iotas
 
         B = Expression(mid, right, ':', [Feature(f, "=")] + gamma, alphas)
         A = Expression(left, right, ':', gamma, movers)
+        return Term(B, A)
+
+    def lc2_merge3(self, C : Expression) -> Term:
+        """
+        t (Left0, Right0, _, [F,-G|Fs], Iotas) ,
+        ( s (Left, Right, T, [=F|Gamma], Alphas) -> s, t (Left, Right, ':', Gamma, Movers) ) )
+        """
+        # TODO: Validate match for lc2_merge3?
+
+        left0, right0 = C.left, C.right
+
+        # Extract the feature being selected
+        f = C.features[0].feature  # take 'f'
+        G = C.features[1].feature  # take 'G' from '-G'
+        iotas = C.movers
+        gamma = [Feature('_Fs')]
+        alphas = [Expression(stype='_M')]
+
+        B = Expression(UNKNOWN_POS, UNKNOWN_POS, UNKNOWN_STYPE, [Feature(f, "=")] + gamma, alphas)
+        A = Expression(UNKNOWN_POS, UNKNOWN_POS, ':', gamma, alphas)
+        A.merged_exp = Expression(left0, right0, ':', [Feature(G, "-")], iotas)
         return Term(B, A)
 
 
