@@ -14,6 +14,8 @@ def test_g1():
         LCRule('shift'),
         LCRule('c1(lc2(merge2))'),
         LCRule('shift'),
+        LCRule('c1(lc1(merge1))'),
+        LCRule('shift'),
     ]
 
     # shift([]:[=v,c]), lc1(merge1), shift
