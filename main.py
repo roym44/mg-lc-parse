@@ -22,6 +22,7 @@ def test_g1():
         LCRule('shift'),
         LCRule('c3(lc2(merge2))'),
         LCRule('c(shift)'),
+        LCRule('c(lc1(move1))'),
     ]
     results = parser.parse(input1, rules=rules1, manual=True)
     sleep(0.1)

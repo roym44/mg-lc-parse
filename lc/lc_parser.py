@@ -230,7 +230,7 @@ class LCParser:
             elif rule.inner_part == 'merge3':
                 return self.lc1_merge3(focus)
             elif rule.inner_part == 'move1':
-                return self.lc1_move1(focus)
+                return self.lc1_move1(exp)
             elif rule.inner_part == 'move2':
                 return self.lc1_move2(focus)
         elif rule.lc_rule == 'lc2':
@@ -258,6 +258,34 @@ class LCParser:
         C = Expression(mid, right, UNKNOWN_STYPE, [Feature(f)], alphas)
         A = Expression(left, right, ':', gamma, alphas)
         return Term(C, A)
+
+    def lc1_move1(self, B : Expression) -> Term:
+        """
+        (Mid, Right, ':', [+F|Fs], Movers0),
+        (Left, Right, ':', Fs, Movers) ) :- select((Left,Mid,[-F]), Movers0, Movers).
+        """
+        # Validate match for lc1(move1)
+        if (not B.movers) or (not B.features[0].is_licensor()) or (not B.movers[0].features[0].is_licensee()):
+            return None
+
+        mid, right = B.left, B.right
+        f = B.features[0].feature # take 'f' from '+f'
+        fs = B.features[1:] # remaining features after '+f'
+
+        # find the licensee in the movers list
+        mover = None
+        movers0 = B.movers
+        for m in movers0:
+            if (m.right == mid) and (m.features[0].feature == f) and (m.features[0].is_licensee()):
+                mover = m
+                movers0.remove(m)
+                break
+        if mover is None:
+            return None
+
+        A = Expression(mover.left, right, ':', fs, movers0)
+        return Term(A)
+
 
     def lc2_merge2(self, C : Expression) -> Term:
         """
@@ -416,3 +444,4 @@ class LCParser:
     # def print_config(self, count, rule, config):
     #    print(f"{count}. {rule}")
     #    print(config)
+
