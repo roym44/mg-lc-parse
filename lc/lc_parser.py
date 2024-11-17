@@ -85,8 +85,8 @@ class LCParser:
                 continue
 
             if manual:
-                if not parsing_rules:
-                    continue
+                # if not parsing_rules:
+                #     continue
                 rule = parsing_rules.pop(0)
                 new_config = self.apply_rule(rule, config)  # step()
                 # if we passed the step (i.e., the oracle check passed), add the new configuration to the stack
