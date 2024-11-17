@@ -8,10 +8,10 @@ from dataclasses import dataclass
 from grammar.lexicon import Feature, parse_features
 from grammar.mg import MG
 from lc.lc_rule import LCRule
-from lc.lc_configuration import Expression, Term
+from lc.lc_configuration import Expression, Term, UNKNOWN_STYPE
 
 UNKNOWN_POS = 99 # replaces '_' position from the paper
-UNKNOWN_STYPE = '.'
+
 Queue = List[Term]
 
 @dataclass
@@ -83,6 +83,8 @@ class LCParser:
                 continue
 
             if manual:
+                if not parsing_rules:
+                    continue
                 rule = parsing_rules.pop(0)
                 new_config = self.apply_rule(rule, config)  # step()
                 # if we passed the step (i.e., the oracle check passed), add the new configuration to the stack
@@ -155,10 +157,11 @@ class LCParser:
         # Apply the comp rule - no changes for (pos, input), new (queue)
         if rule.is_comp():
             # we have the result waiting for us to complete a prediction
-            result, new_queue = self.comp(rule, result, updated_queue)
-        # just insert the new result to the queue
-        else:
-            new_queue = [result] + updated_queue
+            # we further update the queue (removing top element)
+            result, updated_queue = self.comp(rule, result, updated_queue)
+
+        # insert the new result to the updated queue (after being processed by all the rules)
+        new_queue = [result] + updated_queue
 
         if result is None:
             self.logger.info(f"No result after applying {rule}! returning same config")
@@ -316,12 +319,12 @@ class LCParser:
         if BtC is None:
             return None, queue
 
-        new_queue = queue.remove(BtC)
+        queue.remove(BtC)
         C = BtC.output_exp
 
         # add (A => C)
         AtC = Term(A, C)
-        return AtC, new_queue
+        return AtC, queue
 
 
 

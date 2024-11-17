@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from grammar.lexicon import Feature
 
+UNKNOWN_STYPE = '.'
 
 @dataclass
 class Expression:
@@ -15,6 +16,13 @@ class Expression:
 
     def __repr__(self):
         return str(self)
+
+    def __eq__(self, other):
+        return self.left == other.left and \
+            self.right == other.right and \
+            (self.stype == other.stype or self.stype == UNKNOWN_STYPE or other.stype == UNKNOWN_STYPE) and \
+            self.features == other.features and \
+            self.movers == other.movers
 
 
 @dataclass
@@ -32,5 +40,7 @@ class Term:
 
     def __repr__(self):
         return str(self)
+
+
 
 
