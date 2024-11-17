@@ -17,11 +17,11 @@ def test_g1():
         LCRule('c1(lc1(merge1))'),
         LCRule('shift'),
         LCRule('lc2(merge3)'),
-        LCRule('shift([]:[=v,+wh,c])')
+        LCRule('shift([]:[=v,+wh,c])'),
+        LCRule('lc1(merge1)'),
+        LCRule('shift'),
+        LCRule('c3(lc2(merge2))'),
     ]
-
-    # shift([]:[=v,c]), lc1(merge1), shift
-    # result=(1-99: [=d, v] [_M]) => (0-99: [v] [_M])
     results = parser.parse(input1, rules=rules1, manual=True)
     sleep(0.1)
     print(f"Results: {results}")

@@ -8,9 +8,10 @@ from dataclasses import dataclass
 from grammar.lexicon import Feature, parse_features
 from grammar.mg import MG
 from lc.lc_rule import LCRule
-from lc.lc_configuration import Expression, Term, UNKNOWN_STYPE, UNKNOWN_POS
+from lc.lc_configuration import *
 
 
+CHAIN_PLACEHOLDER = Expression(stype='_M')
 Queue = List[Term]
 
 @dataclass
@@ -88,7 +89,7 @@ class LCParser:
                 new_config = self.apply_rule(rule, config)  # step()
                 # if we passed the step (i.e., the oracle check passed), add the new configuration to the stack
                 if new_config != config:
-                    self.logger.warning(f"{count + 1}. {rule} {new_config.remaining_input}\n{new_config.queue}")
+                    self.logger.warning(f"{count + 1}. {rule} {new_config.remaining_input}\n{new_config.get_queue_string()}")
                     stack.append((new_config, applied_rules + [rule]))
                     self.log_stack(stack)
                 continue
@@ -103,7 +104,7 @@ class LCParser:
                 new_config = self.apply_rule(rule, config) # step()
                 # if we passed the step (i.e., the oracle check passed), add the new configuration to the stack
                 if new_config != config:
-                    self.logger.warning(f"{count + 1}. {rule} {new_config.remaining_input}\n{new_config.queue}")
+                    self.logger.warning(f"{count + 1}. {rule} {new_config.remaining_input}\n{new_config.get_queue_string()}")
                     stack.append((new_config, applied_rules + [rule]))
                     self.log_stack(stack)
 
@@ -245,7 +246,7 @@ class LCParser:
         ( t (Mid, Right, _,  [F], Alphas) -> st (Left, Right, ':', Gamma, Alphas) ))
         """
         # Validate match for lc1(merge1)
-        if (B.stype != '::') or (not B.features) or (B.features[0].prefix != '=') or (B.movers):
+        if (B.stype != '::') or (not B.features) or (not B.features[0].is_selector()) or (B.movers):
             return None
 
         left, mid, right = B.left, B.right, UNKNOWN_POS
@@ -253,7 +254,7 @@ class LCParser:
         # Extract the feature being selected
         f = B.features[0].feature  # take 'f' from '=f'
         gamma = B.features[1:]  # Remaining features after '=F'
-        alphas = [Expression(stype='_M')]
+        alphas = [CHAIN_PLACEHOLDER]
 
         C = Expression(mid, right, UNKNOWN_STYPE, [Feature(f)], alphas)
         A = Expression(left, right, ':', gamma, alphas)
@@ -272,7 +273,7 @@ class LCParser:
         f = C.features[0].feature  # take 'f'
         iotas = C.movers
         gamma = [Feature('v')] # TODO: should be taken from a rule in the grammar
-        alphas = [Expression(stype='_M')]
+        alphas = [CHAIN_PLACEHOLDER]
         movers = alphas + iotas
 
         B = Expression(mid, right, ':', [Feature(f, "=")] + gamma, alphas)
@@ -284,7 +285,9 @@ class LCParser:
         t (Left0, Right0, _, [F,-G|Fs], Iotas) ,
         ( s (Left, Right, T, [=F|Gamma], Alphas) -> s, t (Left, Right, ':', Gamma, Movers) ) )
         """
-        # TODO: Validate match for lc2_merge3?
+        # Validate match for lc2(merge3)
+        if (len(C.features) < 2) or (not C.features[1].is_licensee()):
+            return None
 
         left0, right0 = C.left, C.right
 
@@ -292,12 +295,12 @@ class LCParser:
         f = C.features[0].feature  # take 'f'
         G = C.features[1].feature  # take 'G' from '-G'
         iotas = C.movers
-        gamma = [Feature('_Fs')]
-        alphas = [Expression(stype='_M')]
+        gamma = [FEATURE_PLACEHOLDER]
+        alphas = [CHAIN_PLACEHOLDER]
 
         B = Expression(UNKNOWN_POS, UNKNOWN_POS, UNKNOWN_STYPE, [Feature(f, "=")] + gamma, alphas)
-        A = Expression(UNKNOWN_POS, UNKNOWN_POS, ':', gamma, alphas)
-        A.merged_exp = Expression(left0, right0, ':', [Feature(G, "-")], iotas)
+        t = Expression(left0, right0, ':', [Feature(G, "-")], iotas)
+        A = Expression(UNKNOWN_POS, UNKNOWN_POS, ':', gamma, alphas + [t])
         return Term(B, A)
 
 
@@ -320,6 +323,8 @@ class LCParser:
 
     def select(self, exp : Expression, queue : Queue, left=True) -> Term:
         for term in queue:
+            if term.is_single():
+                continue
             # found on left side
             if left and term.exp == exp:
                 return term
@@ -347,8 +352,34 @@ class LCParser:
         AtC = Term(A, C)
         return AtC, queue
 
+    def c3(self, BtC : Term, queue : Queue) -> (Term, Queue):
+        """
+        % forward and backward composition
+        composeOrNot(R,(B -> C),c3(R),(A -> D),Queue0,Queue) :-
+            select((A -> B), Queue0, Queue1),
+            select((C -> D), Queue1, Queue),
+        """
+        B, C = BtC.exp, BtC.output_exp
 
+        # look for (A => B') in the queue
+        AtBPrime = self.select(B, queue, left=False)
+        if AtBPrime is None:
+            return None, queue
+        queue.remove(AtBPrime)
+        A, BPrime = AtBPrime.exp, AtBPrime.output_exp
+        B.match(BPrime)
+        A.match(BPrime)
 
+        # look for (C => D) in the queue
+        CtD = self.select(C, queue, left=True)
+        if CtD is None:
+            return None, queue
+        queue.remove(CtD)
+        D = CtD.output_exp
+
+        # add (A => D)
+        AtD = Term(A, D)
+        return AtD, queue
 
 
     def oracle_ok(self, new_queue, result):
