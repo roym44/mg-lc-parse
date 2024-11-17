@@ -1,56 +1,29 @@
 """
-Defines the left-corner parser object
+Defines the lc parser object
 """
 from loguru import logger
+from typing import List
 from dataclasses import dataclass
-from lc_rule import LCRule
-from mg import MG, Feature, LexItem, parse_features
 
-UNKNOWN_POS = 99
+from grammar.lexicon import Feature, parse_features
+from grammar.mg import MG
+from lc.lc_rule import LCRule
+from lc.lc_configuration import Expression, Term
+
+UNKNOWN_POS = 99 # replaces '_' position from the paper
 UNKNOWN_STYPE = '.'
-
-@dataclass
-class Expression:
-    left: int # left position
-    right: int # right position
-    stype: str # : or ::
-    features: list[Feature]
-    movers: list[Feature]
-
-    def __str__(self):
-        return f"({self.left}-{self.right}{self.stype} {self.features} {self.movers})"
-
-    def __repr__(self):
-        return str(self)
-
-
-@dataclass
-class Term:
-    exp: Expression
-    output_exp: Expression = None
-
-    def is_single(self) -> bool:
-        return self.output_exp is None
-
-    def __str__(self):
-        if self.output_exp:
-            return f"{self.exp} => {self.output_exp}"
-        return f"{self.exp}"
-
-    def __repr__(self):
-        return str(self)
+Queue = List[Term]
 
 @dataclass
 class Configuration:
     current_pos: int
     remaining_input: list[str]
-    queue: list[Term]
+    queue: Queue
 
     def get_queue_string(self):
         elements = '\t'.join([str(q) for q in self.queue])
         return f"§{elements}§"
-    def __repr__(self):
-        return self.__str__()
+
 
     def __str__(self):
         return f"Pos:{self.current_pos},\tInput: {self.remaining_input},\tQueue:{self.get_queue_string()}"
@@ -142,27 +115,29 @@ class LCParser:
         new_queue = config.queue
         result : Term = None
 
-        # Apply a shift rule
+        # Apply a shift rule - no changes for (pos, input, queue)
         if rule.is_empty_shift(): # can be applied at any time
             # get the features of the empty lexical item
             fs = rule.inner_part.split(':')[1].strip('[]')
             result = self.empty_shift(fs, config.current_pos)
 
+        # Apply a shift rule - new (pos, input, queue)
         elif rule.is_shift(): # based on remaining input
             result, new_pos, new_input = self.shift(config.remaining_input, config.current_pos)
+            new_queue = [result] + config.queue
 
-        # Apply the LC rule to the queue's focus element
+        # Apply the LC rule to the focus - no changes for (pos, input), new (queue)
         elif rule.is_lc():
             if not config.queue:
                 self.logger.info("No focus element in the queue! returning same config")
                 return config
             focus, *remaining_queue = config.queue  # unpack the queue
             result = self.lc(rule, focus)
-            new_queue = remaining_queue
+            new_queue = [result] + remaining_queue
 
-        # Apply the inner lc rule; than composeOrNot()
+        # Apply the comp rule - no changes for (pos, input), new (queue)
         elif rule.is_comp():
-            self.logger.info(f"apply_rule(): Rule type is comp")
+            result, new_queue = self.comp(rule, result, new_queue)
         else:
             raise ValueError(f"apply_rule(): Unknown rule type: {rule}")
 
@@ -170,17 +145,15 @@ class LCParser:
             self.logger.info("No result after applying the rule! returning same config")
             return config
 
-        # Update queue with the result if oracle check passes
         if self.oracle_ok(new_queue, result):
             self.logger.info("Passed the oracle check! returning new config")
-            return Configuration(new_pos, new_input, [result] + new_queue)
+            return Configuration(new_pos, new_input, new_queue)
 
-        # If the oracle fails, return the configuration unchanged for now
         self.logger.info("Failed the oracle check! returning same config")
         return config
 
 
-    def empty_shift(self, fs, pos) -> Term:
+    def empty_shift(self, fs : str, pos : int) -> Term:
         """
         Empty shift operation: moves an empty element to the queue.
         shift(Input,Input,shift([],Fs),Pos,Pos,(Pos,Pos,'::',Fs,[])) :- ([]::Fs).
@@ -189,11 +162,12 @@ class LCParser:
         :return: The new result term.
         """
         self.logger.info(f"fs = [{fs}], pos = {pos}")
+        # probably the only usage of parse_features() since we specify features in empty-shift in that format
         features = parse_features(fs)
         result = Expression(pos, pos, '::', features, [])
         return Term(result)
 
-    def shift(self, input_data, pos) -> (Term, int, list[str]):
+    def shift(self, input_data : list[str], pos : int) -> (Term, int, list[str]):
         """
         Shift operation: moves an element from input to the queue.
         shift([W|Input],Input,shift([W],Fs),Pos0,Pos,(Pos0,Pos,'::',Fs,[])) :- ([W]::Fs), Pos is Pos0+1.
@@ -213,7 +187,7 @@ class LCParser:
         result = Expression(pos, new_pos, '::', fs, [])
         return Term(result), new_pos, new_input
 
-    def lc(self, rule, focus : Term) -> Term:
+    def lc(self, rule : LCRule, focus : Term) -> Term:
         """
         Apply the appropriate LC rule to the focus element.
         :param rule: The LC rule to apply.
@@ -248,8 +222,6 @@ class LCParser:
         """
         (Left, Mid, '::', [=F|Gamma], []),
         ( (Mid, Right, _,  [F], Alphas) -> (Left, Right, ':', Gamma, Alphas) ))
-        :param focus:
-        :return:
         """
         # Validate match for lc1(merge1)
         if (B.stype != '::') or (not B.features) or (B.features[0].prefix != '=') or (B.movers):
@@ -269,8 +241,6 @@ class LCParser:
         """
         (Left, Mid, _, [F], Iotas),
         ( ( Mid, Right, ':',  [=F|Gamma], Alphas) -> (Left, Right, ':', Gamma, Movers) ))
-        :param focus:
-        :return:
         """
         # TODO: Validate match for lc2_merge2?
 
@@ -288,15 +258,21 @@ class LCParser:
         return Term(B, A)
 
 
-    def compose_or_not(self, rule, result, queue):
-        """
-        Composition operation based on rule.
-        :param rule: The rule applied.
-        :param result: Result from shift or LC rule application.
-        :param queue: Current queue.
-        :return: Updated result after composition.
-        """
-        return result  # Modify as composition rules are defined
+    def comp(self, rule : LCRule, result : Term, new_queue : Queue) -> (Term, Queue):
+        self.logger.info(f"result={result}")
+        # Make sure the result is (exp -> exp)
+        if result.is_single():
+            return None
+
+        if rule.comp_rule == 'c1':
+            return self.c1(result, new_queue)
+        elif rule.comp_rule == 'c2':
+            return self.c2(result, new_queue)
+        elif rule.comp_rule == 'c3':
+            return self.c3(result, new_queue)
+        elif rule.comp_rule == 'c':
+            return self.c(result, new_queue)
+
 
     def oracle_ok(self, new_queue, result):
         return True
@@ -304,4 +280,7 @@ class LCParser:
     # def print_config(self, count, rule, config):
     #    print(f"{count}. {rule}")
     #    print(config)
+    def c1(self, result : Term, new_queue : Queue) -> (Term, Queue):
+        pass
+
 

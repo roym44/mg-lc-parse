@@ -1,8 +1,8 @@
 from time import sleep
 
-from mg import MG
-from lc_rule import LCRule
-from lc_parser import LCParser
+from grammar.mg import MG
+from lc.lc_rule import LCRule
+from lc.lc_parser import LCParser
 
 def test_g1():
     g1 = MG('input/g1.json')
