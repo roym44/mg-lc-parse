@@ -1,6 +1,7 @@
 """
 Defines the lc parser object
 """
+from copy import deepcopy
 from loguru import logger
 from typing import List
 from dataclasses import dataclass
@@ -187,13 +188,12 @@ class LCParser:
             # we have the result waiting for us to complete a prediction
             # we further update the queue (removing top element)
             result, updated_queue = self.comp(rule, result, updated_queue)
+            if result is None:
+                self.logger.info(f"No result after applying {rule}! returning same config")
+                return config
 
         # insert the new result to the updated queue (after being processed by all the rules)
         new_queue = [result] + updated_queue
-
-        if result is None:
-            self.logger.info(f"No result after applying {rule}! returning same config")
-            return config
 
         if self.oracle_ok(new_queue, result):
             self.logger.info("Passed the oracle check! returning new config")
@@ -405,7 +405,7 @@ class LCParser:
         composeOrNot(R,A,c(R),B,Queue0,Queue) :- select((A -> B), Queue0, Queue),
         """
         # look for (A' => B) in the queue
-        APrimetB = self.select(A, queue, left=True)
+        APrimetB = deepcopy(self.select(A, queue, left=True))
         if APrimetB is None:
             return None, queue
         queue.remove(APrimetB)
@@ -423,7 +423,7 @@ class LCParser:
         A, B = AtB.exp, AtB.output_exp
 
         # look for (B => C) in the queue
-        BtC = self.select(B, queue, left=True)
+        BtC = deepcopy(self.select(B, queue, left=True))
         if BtC is None:
             return None, queue
 
@@ -443,8 +443,10 @@ class LCParser:
         """
         B, C = BtC.exp, BtC.output_exp
 
+        # ! general note: deepcopy is necessary, so we don't match original features in the queue !
+
         # look for (A => B') in the queue
-        AtBPrime = self.select(B, queue, left=False)
+        AtBPrime = deepcopy(self.select(B, queue, left=False))
         if AtBPrime is None:
             return None, queue
         queue.remove(AtBPrime)
@@ -453,7 +455,7 @@ class LCParser:
         A.match(B)
 
         # look for (C' => D) in the queue
-        CPrimetD = self.select(C, queue, left=True)
+        CPrimetD = deepcopy(self.select(C, queue, left=True))
         if CPrimetD is None:
             return None, queue
         queue.remove(CPrimetD)
