@@ -37,7 +37,7 @@ class MG:
         for r in data.get('rules'):
             self.rules.append(LCRule(r))
 
-        self.start_category = Feature(data.get('start_category'))
+        self.start_category = Feature(data.get('startCategory'))
 
     def get_lexicon_item(self, element):
         """

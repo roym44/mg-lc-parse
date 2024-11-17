@@ -110,8 +110,28 @@ class LCParser:
         return results
 
 
-    def is_success(self, config : Configuration):
-        return False
+    def is_success(self, config : Configuration) -> bool:
+        """
+        Success if input is fully consumed and queue contains a single, valid structure
+        :param config: The current parser state.
+        :return: True if the configuration is successful, False otherwise.
+        """
+        if config.remaining_input:
+            return False
+
+        if len(config.queue) != 1:
+            return False
+
+        # Check span covers the entire input and no movers remain
+        final_exp = config.queue[0].exp
+        if (final_exp.left != 0) or (final_exp.right != config.current_pos) or (final_exp.movers):
+            return False
+
+        # Check that the features match the grammar's start category
+        if (len(final_exp.features) != 1) or (final_exp.features[0] != self.grammar.start_category):
+            return False
+
+        return True
 
     def apply_rule(self, rule : LCRule, config : Configuration) -> Configuration:
         """
