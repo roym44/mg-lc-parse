@@ -308,6 +308,14 @@ class LCParser:
     def comp(self, rule : LCRule, result : Term, queue : Queue) -> (Term, Queue):
         self.logger.info(f"result={result}")
         self.logger.info(f"queue={queue}")
+
+        if rule.comp_rule == 'c':
+            # Make sure the result is (exp)
+            if not result.is_single():
+                return None, queue
+            exp = result.exp
+            return self.c(exp, queue)
+
         # Make sure the result is (exp -> exp)
         if result.is_single():
             return None, queue
@@ -318,8 +326,7 @@ class LCParser:
             return self.c2(result, queue)
         elif rule.comp_rule == 'c3':
             return self.c3(result, queue)
-        elif rule.comp_rule == 'c':
-            return self.c(result, queue)
+
 
 
     def select(self, exp : Expression, queue : Queue, left=True) -> Term:
@@ -333,6 +340,23 @@ class LCParser:
             if term.output_exp == exp:
                 return term
         return None
+
+
+    def c(self, A : Expression, queue : Queue) -> (Term, Queue):
+        """
+        % compose completed result
+        composeOrNot(R,A,c(R),B,Queue0,Queue) :- select((A -> B), Queue0, Queue),
+        """
+        # look for (A' => B) in the queue
+        APrimetB = self.select(A, queue, left=True)
+        if APrimetB is None:
+            return None, queue
+        queue.remove(APrimetB)
+        APrime, B = APrimetB.exp, APrimetB.output_exp
+        APrime.match(A)
+        B.match(APrime)
+
+        return Term(B), queue
 
     def c1(self, AtB : Term, queue : Queue) -> (Term, Queue):
         """
@@ -371,7 +395,7 @@ class LCParser:
         B.match(BPrime)
         A.match(B)
 
-        # look for (C => D) in the queue
+        # look for (C' => D) in the queue
         CPrimetD = self.select(C, queue, left=True)
         if CPrimetD is None:
             return None, queue
