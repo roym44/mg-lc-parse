@@ -10,8 +10,7 @@ from grammar.mg import MG
 from lc.lc_rule import LCRule
 from lc.lc_configuration import *
 
-
-CHAIN_PLACEHOLDER = Expression(stype='_M')
+CHAIN_EXPRESSION = Expression(stype=CHAIN_PLACEHOLDER)
 Queue = List[Term]
 
 @dataclass
@@ -254,7 +253,7 @@ class LCParser:
         # Extract the feature being selected
         f = B.features[0].feature  # take 'f' from '=f'
         gamma = B.features[1:]  # Remaining features after '=F'
-        alphas = [CHAIN_PLACEHOLDER]
+        alphas = [CHAIN_EXPRESSION]
 
         C = Expression(mid, right, UNKNOWN_STYPE, [Feature(f)], alphas)
         A = Expression(left, right, ':', gamma, alphas)
@@ -273,7 +272,7 @@ class LCParser:
         f = C.features[0].feature  # take 'f'
         iotas = C.movers
         gamma = [Feature('v')] # TODO: should be taken from a rule in the grammar
-        alphas = [CHAIN_PLACEHOLDER]
+        alphas = [CHAIN_EXPRESSION]
         movers = alphas + iotas
 
         B = Expression(mid, right, ':', [Feature(f, "=")] + gamma, alphas)
@@ -296,11 +295,13 @@ class LCParser:
         G = C.features[1].feature  # take 'G' from '-G'
         iotas = C.movers
         gamma = [FEATURE_PLACEHOLDER]
-        alphas = [CHAIN_PLACEHOLDER]
+        alphas = [CHAIN_EXPRESSION]
 
-        B = Expression(UNKNOWN_POS, UNKNOWN_POS, UNKNOWN_STYPE, [Feature(f, "=")] + gamma, alphas)
+        # we don't put alphas in the movers of B, based on the steps 8-9 in the example derivation
+        B = Expression(UNKNOWN_POS, UNKNOWN_POS, UNKNOWN_STYPE, [Feature(f, "=")] + gamma, [])
         t = Expression(left0, right0, ':', [Feature(G, "-")], iotas)
-        A = Expression(UNKNOWN_POS, UNKNOWN_POS, ':', gamma, alphas + [t])
+        # here we don't put alphas in movers since we have [t] as the next in the chain
+        A = Expression(UNKNOWN_POS, UNKNOWN_POS, ':', gamma, [t])
         return Term(B, A)
 
 
@@ -368,14 +369,17 @@ class LCParser:
         queue.remove(AtBPrime)
         A, BPrime = AtBPrime.exp, AtBPrime.output_exp
         B.match(BPrime)
-        A.match(BPrime)
+        A.match(B)
 
         # look for (C => D) in the queue
-        CtD = self.select(C, queue, left=True)
-        if CtD is None:
+        CPrimetD = self.select(C, queue, left=True)
+        if CPrimetD is None:
             return None, queue
-        queue.remove(CtD)
-        D = CtD.output_exp
+        queue.remove(CPrimetD)
+        CPrime, D = CPrimetD.exp, CPrimetD.output_exp
+        C.match(B)
+        C.match(CPrime)
+        D.match(C)
 
         # add (A => D)
         AtD = Term(A, D)
