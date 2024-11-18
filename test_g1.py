@@ -1,6 +1,7 @@
 from lc.lc_rule import LCRule
 from time import sleep
 
+
 def test_g1_input1_manual(parser, input1):
     rules1 = [
         LCRule('shift([]:[=v,c])'),
@@ -20,6 +21,7 @@ def test_g1_input1_manual(parser, input1):
     ]
     test_g1_input(parser, input1, rules=rules1, manual=True)
 
+
 def test_g1_input2_manual(parser, input2):
     rules2 = [
         LCRule('shift([]:[=v,c])'),
@@ -31,6 +33,7 @@ def test_g1_input2_manual(parser, input2):
         LCRule('c(shift)'),
     ]
     test_g1_input(parser, input2, rules=rules2, manual=True)
+
 
 def test_g1_input3_manual(parser, input3):
     rules3 = [
@@ -53,6 +56,7 @@ def test_g1_input3_manual(parser, input3):
         LCRule('c(shift)')
     ]
     test_g1_input(parser, input3, rules=rules3, manual=True)
+
 
 def test_g1_input(parser, inp, rules=None, manual=False):
     results = parser.parse(inp, rules=rules, manual=manual)

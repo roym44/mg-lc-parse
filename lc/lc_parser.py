@@ -4,7 +4,6 @@ Defines the lc parser object
 from copy import deepcopy
 from loguru import logger
 from typing import List
-from dataclasses import dataclass
 
 from grammar.lexicon import Feature, parse_features
 from grammar.mg import MG
@@ -13,6 +12,7 @@ from lc.lc_configuration import *
 
 CHAIN_EXPRESSION = Expression(stype=CHAIN_PLACEHOLDER)
 Queue = List[Term]
+
 
 @dataclass
 class Configuration:
@@ -24,12 +24,12 @@ class Configuration:
         elements = '\t'.join([str(q) for q in self.queue])
         return f"§{elements}§"
 
-
     def __str__(self):
         return f"Pos:{self.current_pos},\tInput: {self.remaining_input},\tQueue:{self.get_queue_string()}"
 
+
 class LCParser:
-    def __init__(self, grammar : MG):
+    def __init__(self, grammar: MG):
         self.grammar = grammar
         self.logger = logger
         self.parsing_rules = []
@@ -83,11 +83,7 @@ class LCParser:
                 stack.append((new_config, applied_rules + [rule]))
                 self.log_stack(stack)
 
-
-
-
-
-    def parse(self, input_str : list[str], rules : list[LCRule] =None, manual=False):
+    def parse(self, input_str: list[str], rules: list[LCRule] = None, manual=False):
         """
         Parse the input string using the provided rules.
         This is of course different from the Prolog version, we do not define parse_steps()
@@ -147,8 +143,7 @@ class LCParser:
                          f"after {config_count} configurations.")
         return results
 
-
-    def is_success(self, config : Configuration) -> bool:
+    def is_success(self, config: Configuration) -> bool:
         """
         Success if input is fully consumed and queue contains a single, valid structure
         :param config: The current parser state.
@@ -171,7 +166,7 @@ class LCParser:
 
         return True
 
-    def apply_rule(self, rule : LCRule, config : Configuration, var=None) -> Configuration:
+    def apply_rule(self, rule: LCRule, config: Configuration, var=None) -> Configuration:
         """
         Applies a parsing rule to the current configuration.
         :param rule: The rule to apply.
@@ -181,18 +176,18 @@ class LCParser:
         self.logger.info(f"Got rule: {rule}, config: {config}, with var={var}")
         new_pos, new_input = config.current_pos, config.remaining_input
         updated_queue = config.queue
-        result : Term = None
+        result: Term = None
 
         # ~~~ STEP 1: HANDLE SHIFT/LC RULES ~~~
 
         # Apply a shift rule - no changes for (pos, input), update (original queue)
-        if rule.is_empty_shift(): # can be applied at any time
+        if rule.is_empty_shift():  # can be applied at any time
             # get the features of the empty lexical item
             fs = rule.inner_part.split(':')[1].strip('[]')
             result = self.empty_shift(fs, config.current_pos)
 
         # Apply a shift rule - new (pos, input), update (original queue)
-        elif rule.is_shift(): # based on remaining input
+        elif rule.is_shift():  # based on remaining input
             result, new_pos, new_input = self.shift(config.remaining_input, config.current_pos)
 
         # Apply the LC rule to the focus - no changes for (pos, input), new (queue)
@@ -230,8 +225,7 @@ class LCParser:
         self.logger.info("Failed the oracle check! returning same config")
         return config
 
-
-    def empty_shift(self, fs : str, pos : int) -> Term:
+    def empty_shift(self, fs: str, pos: int) -> Term:
         """
         Empty shift operation: moves an empty element to the queue.
         shift(Input,Input,shift([],Fs),Pos,Pos,(Pos,Pos,'::',Fs,[])) :- ([]::Fs).
@@ -245,7 +239,7 @@ class LCParser:
         result = Expression(pos, pos, '::', features, [])
         return Term(result)
 
-    def shift(self, input_data : list[str], pos : int) -> (Term, int, list[str]):
+    def shift(self, input_data: list[str], pos: int) -> (Term, int, list[str]):
         """
         Shift operation: moves an element from input to the queue.
         shift([W|Input],Input,shift([W],Fs),Pos0,Pos,(Pos0,Pos,'::',Fs,[])) :- ([W]::Fs), Pos is Pos0+1.
@@ -265,7 +259,7 @@ class LCParser:
         result = Expression(pos, new_pos, '::', fs, [])
         return Term(result), new_pos, new_input
 
-    def lc(self, rule : LCRule, focus : Term, var=None) -> Term:
+    def lc(self, rule: LCRule, focus: Term, var=None) -> Term:
         """
         Apply the appropriate LC rule to the focus element.
         :param rule: The LC rule to apply.
@@ -296,7 +290,7 @@ class LCParser:
             elif rule.inner_part == 'merge3':
                 return self.lc2_merge3(exp)
 
-    def lc1_merge1(self, B : Expression) -> Term:
+    def lc1_merge1(self, B: Expression) -> Term:
         """
         s (Left, Mid, '::', [=F|Gamma], []),
         ( t (Mid, Right, _,  [F], Alphas) -> st (Left, Right, ':', Gamma, Alphas) ))
@@ -316,7 +310,7 @@ class LCParser:
         A = Expression(left, right, ':', gamma, alphas)
         return Term(C, A)
 
-    def lc1_move1(self, B : Expression) -> Term:
+    def lc1_move1(self, B: Expression) -> Term:
         """
         (Mid, Right, ':', [+F|Fs], Movers0),
         (Left, Right, ':', Fs, Movers) ) :- select((Left,Mid,[-F]), Movers0, Movers).
@@ -326,8 +320,8 @@ class LCParser:
             return None
 
         mid, right = B.left, B.right
-        f = B.features[0].feature # take 'f' from '+f'
-        fs = B.features[1:] # remaining features after '+f'
+        f = B.features[0].feature  # take 'f' from '+f'
+        fs = B.features[1:]  # remaining features after '+f'
 
         # find the licensee in the movers list
         mover = None
@@ -343,7 +337,6 @@ class LCParser:
         A = Expression(mover.left, right, ':', fs, movers0)
         return Term(A)
 
-
     def get_gammas_for_feature(self, selectee):
         gammas = []
         selector = Feature(selectee, "=")
@@ -355,8 +348,7 @@ class LCParser:
                     gammas.append(g)
         return gammas
 
-
-    def lc2_merge2(self, C : Expression, var=None) -> Term:
+    def lc2_merge2(self, C: Expression, var=None) -> Term:
         """
         t (Left, Mid, _, [F], Iotas),
         ( s ( Mid, Right, ':',  [=F|Gamma], Alphas) -> ts (Left, Right, ':', Gamma, Movers) ))
@@ -376,7 +368,7 @@ class LCParser:
         A = Expression(left, right, ':', gamma, movers)
         return Term(B, A)
 
-    def lc2_merge3(self, C : Expression) -> Term:
+    def lc2_merge3(self, C: Expression) -> Term:
         """
         t (Left0, Right0, _, [F,-G|Fs], Iotas) ,
         ( s (Left, Right, T, [=F|Gamma], Alphas) -> s, t (Left, Right, ':', Gamma, Movers) ) )
@@ -401,8 +393,7 @@ class LCParser:
         A = Expression(UNKNOWN_POS, UNKNOWN_POS, ':', gamma, [t])
         return Term(B, A)
 
-
-    def comp(self, rule : LCRule, result : Term, queue : Queue) -> (Term, Queue):
+    def comp(self, rule: LCRule, result: Term, queue: Queue) -> (Term, Queue):
         self.logger.info(f"result={result}")
         self.logger.info(f"queue={queue}")
 
@@ -424,9 +415,7 @@ class LCParser:
         elif rule.comp_rule == 'c3':
             return self.c3(result, queue)
 
-
-
-    def select(self, exp : Expression, queue : Queue, left=True) -> Term:
+    def select(self, exp: Expression, queue: Queue, left=True) -> Term:
         for term in queue:
             if term.is_single():
                 continue
@@ -438,8 +427,7 @@ class LCParser:
                 return term
         return None
 
-
-    def c(self, A : Expression, queue : Queue) -> (Term, Queue):
+    def c(self, A: Expression, queue: Queue) -> (Term, Queue):
         """
         % compose completed result
         composeOrNot(R,A,c(R),B,Queue0,Queue) :- select((A -> B), Queue0, Queue),
@@ -455,7 +443,7 @@ class LCParser:
 
         return Term(B), queue
 
-    def c1(self, AtB : Term, queue : Queue) -> (Term, Queue):
+    def c1(self, AtB: Term, queue: Queue) -> (Term, Queue):
         """
         % forward composition
         composeOrNot(R,(A -> B),c1(R),(A -> C),Queue0,Queue) :- select((B -> C), Queue0, Queue),
@@ -466,7 +454,6 @@ class LCParser:
         BtC = deepcopy(self.select(B, queue, left=True))
         if BtC is None:
             return None, queue
-
         queue.remove(BtC)
         C = BtC.output_exp
 
@@ -474,7 +461,7 @@ class LCParser:
         AtC = Term(A, C)
         return AtC, queue
 
-    def c3(self, BtC : Term, queue : Queue) -> (Term, Queue):
+    def c3(self, BtC: Term, queue: Queue) -> (Term, Queue):
         """
         % forward and backward composition
         composeOrNot(R,(B -> C),c3(R),(A -> D),Queue0,Queue) :-
@@ -508,11 +495,5 @@ class LCParser:
         AtD = Term(A, D)
         return AtD, queue
 
-
     def oracle_ok(self, new_queue, result):
         return True
-
-    # def print_config(self, count, rule, config):
-    #    print(f"{count}. {rule}")
-    #    print(config)
-

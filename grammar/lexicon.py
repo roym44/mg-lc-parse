@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+
 @dataclass
 class Feature:
     feature: str
@@ -37,16 +38,16 @@ def parse_features(features) -> list[Feature]:
 
 
 class LexItem:
-    def __init__(self, element : str, features : str):
+    def __init__(self, element: str, features: str):
         """
         Initializes the lexical item with the given element and features.
         :param element: The element  (e.g., 'Aca')
         :param features: The features as a concatenated string (e.g., '=v,+wh,c')
         """
-        self.element : str = element
-        self.features : list[Feature] = parse_features(features)
+        self.element: str = element
+        self.features: list[Feature] = parse_features(features)
 
-    def get_last_index(self, f : Feature):
+    def get_last_index(self, f: Feature):
         try:
             return len(self.features) - 1 - self.features[::-1].index(f)
         except ValueError:
@@ -57,6 +58,3 @@ class LexItem:
 
     def __repr__(self):
         return str(self)
-
-
-

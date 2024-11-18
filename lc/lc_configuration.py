@@ -1,16 +1,17 @@
 from dataclasses import dataclass
 from grammar.lexicon import Feature
 
-UNKNOWN_POS = 99 # replaces '_' position from the paper, will be printed as '_'
+UNKNOWN_POS = 99  # replaces '_' position from the paper, will be printed as '_'
 UNKNOWN_STYPE = '.'
 FEATURE_PLACEHOLDER = Feature('_Fs')
 CHAIN_PLACEHOLDER = '_M'
 
+
 @dataclass
 class Expression:
-    left: int = UNKNOWN_POS # left position
-    right: int = UNKNOWN_POS # right position
-    stype: str  = UNKNOWN_STYPE # : or ::
+    left: int = UNKNOWN_POS  # left position
+    right: int = UNKNOWN_POS  # right position
+    stype: str = UNKNOWN_STYPE  # : or ::
     features: list[Feature] = None
     movers: list['Expression'] = None
 
@@ -32,7 +33,7 @@ class Expression:
 
     def stype_equal(self, other):
         return (self.stype == other.stype) or \
-        (self.stype == UNKNOWN_STYPE) or (other.stype == UNKNOWN_STYPE)
+            (self.stype == UNKNOWN_STYPE) or (other.stype == UNKNOWN_STYPE)
 
     def pos_equal(self, pos1, pos2):
         return (pos1 == pos2) or (pos1 == UNKNOWN_POS) or (pos2 == UNKNOWN_POS)
@@ -40,7 +41,6 @@ class Expression:
     def features_equal(self, other):
         return (self.features == other.features) or \
             (self.features[0] == FEATURE_PLACEHOLDER) or (other.features[0] == FEATURE_PLACEHOLDER)
-
 
     def is_chain_place(self):
         return self.stype == CHAIN_PLACEHOLDER
@@ -71,6 +71,7 @@ class Expression:
             if m.is_chain_place():
                 return i
         return -1
+
     def has_mover_placeholder(self):
         return self.get_mover_place_index() > -1
 
@@ -81,7 +82,6 @@ class Expression:
             self.features = self.features[:self.get_feat_place_index()] + other.features
         if self.has_mover_placeholder() and mover:
             self.movers = self.movers[:self.get_mover_place_index()] + other.movers
-
 
 
 @dataclass
@@ -99,7 +99,3 @@ class Term:
 
     def __repr__(self):
         return str(self)
-
-
-
-

@@ -6,16 +6,17 @@ import json
 from grammar.lexicon import LexItem, Feature
 from lc.lc_rule import LCRule
 
+
 class MG:
     def __init__(self, input_file):
         """
         Initializes the grammar object with the given input file
         :param input_file: The grammar description file in JSON format
         """
-        self.lexicon : list[LexItem] = [] # a mapping between an element and its features
-        self.rules : list[LCRule] = [] # a list of LC rules
-        self.start_category : Feature = None
-        self.link_relations : dict[str, str] = {}
+        self.lexicon: list[LexItem] = []  # a mapping between an element and its features
+        self.rules: list[LCRule] = []  # a list of LC rules
+        self.start_category: Feature = None
+        self.link_relations: dict[str, str] = {}
 
         # Parse the JSON file
         with open(input_file, 'r') as file:
@@ -31,7 +32,7 @@ class MG:
         :param data: The JSON data to parse
         """
         for k, v in data.get('lexicon').items():
-            for f in v: # empty lexical item can have multiple sets of features
+            for f in v:  # empty lexical item can have multiple sets of features
                 self.lexicon.append(LexItem(k, f))
 
         for r in data.get('rules'):

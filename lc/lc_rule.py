@@ -9,10 +9,10 @@ There are three types of rules:
 
 class LCRule:
     def __init__(self, rule: str):
-        self.raw_rule : str = rule
-        self.comp_rule : str = ''
-        self.lc_rule : str = ''
-        self.inner_part : str = ''
+        self.raw_rule: str = rule
+        self.comp_rule: str = ''
+        self.lc_rule: str = ''
+        self.inner_part: str = ''
         self.parse_rule()
 
     def parse_rule(self):
@@ -64,6 +64,7 @@ class LCRule:
     def __repr__(self):
         # return f"{self.raw_rule} § comp={self.comp_rule} lc={self.lc_rule} inner={self.inner_part}"
         return str(self)
+
 
 if __name__ == '__main__':
     lcr1 = LCRule('shift')
