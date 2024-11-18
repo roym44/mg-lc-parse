@@ -46,6 +46,12 @@ class LexItem:
         self.element : str = element
         self.features : list[Feature] = parse_features(features)
 
+    def get_last_index(self, f : Feature):
+        try:
+            return len(self.features) - 1 - self.features[::-1].index(f)
+        except ValueError:
+            return -1
+
     def __str__(self):
         return f"{repr(self.element)} :: {self.features}"
 

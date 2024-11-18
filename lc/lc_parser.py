@@ -32,6 +32,7 @@ class LCParser:
     def __init__(self, grammar : MG):
         self.grammar = grammar
         self.logger = logger
+        self.parsing_rules = []
 
     def log_stack(self, stack):
         stack_str = 'STACK:\n'
@@ -45,13 +46,45 @@ class LCParser:
         Based on the lexicon, add the relevant empty-shift rules (e.g., shift([], [=v,c])).
         :return: A list of parsing rules.
         """
-        parsing_rules = self.grammar.rules
+        self.parsing_rules = self.grammar.rules
         for item in self.grammar.lexicon:
             # Add the empty-shift rule for each feature
             if item.element == '':
                 # we abuse ':' as a separator between the lexical item and its features
-                parsing_rules.append(LCRule(f"shift([]:{item.features})".replace(' ', '')))
-        return parsing_rules
+                self.parsing_rules.append(LCRule(f"shift([]:{item.features})".replace(' ', '')))
+
+    def step(self, rule, config, stack, count, applied_rules):
+        if rule.lc_rule == 'lc2' and rule.inner_part == 'merge2':
+            if not config.queue:
+                self.logger.info("No focus element in the queue! returning same config")
+                return
+
+            focus = config.queue[0]
+            if not focus.is_single():
+                return
+            # get the future-selectee feature of the focus element
+            f = focus.exp.features[0].feature
+            gammas = self.get_gammas_for_feature(f)
+
+            for gamma in gammas:
+                new_config = self.apply_rule(rule, config, var=gamma)  # step()
+                # if we passed the rule (i.e., the oracle check passed), add the new configuration to the stack
+                if new_config != config:
+                    self.logger.warning(
+                        f"{count + 1}. {rule} {new_config.remaining_input}\n{new_config.get_queue_string()}")
+                    stack.append((new_config, applied_rules + [rule]))
+                    self.log_stack(stack)
+        else:
+            new_config = self.apply_rule(rule, config)  # step()
+            # if we passed the rule (i.e., the oracle check passed), add the new configuration to the stack
+            if new_config != config:
+                self.logger.warning(
+                    f"{count + 1}. {rule} {new_config.remaining_input}\n{new_config.get_queue_string()}")
+                stack.append((new_config, applied_rules + [rule]))
+                self.log_stack(stack)
+
+
+
 
 
     def parse(self, input_str : list[str], rules : list[LCRule] =None, manual=False):
@@ -65,9 +98,12 @@ class LCParser:
         :param manual: Apply rules in a linear, manual order (as in the paper).
         :return: A list of successful configurations and the applied rules.
         """
-        parsing_rules = rules or self.generate_parsing_rules()
+        if rules:
+            self.parsing_rules = rules
+        elif not self.parsing_rules:
+            self.generate_parsing_rules()
         self.logger.info(f"Parsing the sentence: {input_str}")
-        self.logger.info(f"Using the rules: {parsing_rules}")
+        self.logger.info(f"Using the rules: {self.parsing_rules}")
         self.logger.info(f"Using the grammar: {self.grammar}")
 
         initial_config = Configuration(0, input_str, [])
@@ -81,23 +117,20 @@ class LCParser:
             count = len(applied_rules)
             self.logger.error(f"Popping config No.{config_count} with {count} applied rules {applied_rules}: {config}")
             if self.is_success(config):
+                self.logger.info(f"Config No.{config_count} is successful! after {count} applied rules!")
                 results.append((config, applied_rules))
                 continue
 
             if manual:
-                # if not parsing_rules:
-                #     continue
-                rule = parsing_rules.pop(0)
-                new_config = self.apply_rule(rule, config)  # step()
-                # if we passed the step (i.e., the oracle check passed), add the new configuration to the stack
-                if new_config != config:
-                    self.logger.warning(f"{count + 1}. {rule} {new_config.remaining_input}\n{new_config.get_queue_string()}")
-                    stack.append((new_config, applied_rules + [rule]))
-                    self.log_stack(stack)
+                # exhausted all rules for this configuration
+                if not self.parsing_rules:
+                    continue
+                rule = self.parsing_rules.pop(0)
+                self.step(rule, config, stack, count, applied_rules)
                 continue
 
             # Explore applying each rule to the current configuration
-            for rule in parsing_rules:
+            for rule in self.parsing_rules:
                 # Skip the empty-shift rule if it has already been applied
                 if rule.is_empty_shift() and rule in applied_rules:
                     self.logger.info(f"Skipping rule: {rule} as it has already been applied!")
@@ -108,12 +141,7 @@ class LCParser:
                     self.logger.info(f"Skipping rule: {rule} because it follows a shift rule!")
                     continue
 
-                new_config = self.apply_rule(rule, config) # step()
-                # if we passed the step (i.e., the oracle check passed), add the new configuration to the stack
-                if new_config != config:
-                    self.logger.warning(f"{count + 1}. {rule} {new_config.remaining_input}\n{new_config.get_queue_string()}")
-                    stack.append((new_config, applied_rules + [rule]))
-                    self.log_stack(stack)
+                self.step(rule, config, stack, count, applied_rules)
 
         self.logger.info(f"Finished parsing. Found {len(results)} successful derivations, "
                          f"after {config_count} configurations.")
@@ -143,14 +171,14 @@ class LCParser:
 
         return True
 
-    def apply_rule(self, rule : LCRule, config : Configuration) -> Configuration:
+    def apply_rule(self, rule : LCRule, config : Configuration, var=None) -> Configuration:
         """
         Applies a parsing rule to the current configuration.
         :param rule: The rule to apply.
         :param config: The current parser state.
         :return: Updated configuration after applying the rule.
         """
-        self.logger.info(f"Got rule: {rule}, config: {config}")
+        self.logger.info(f"Got rule: {rule}, config: {config}, with var={var}")
         new_pos, new_input = config.current_pos, config.remaining_input
         updated_queue = config.queue
         result : Term = None
@@ -173,7 +201,7 @@ class LCParser:
                 self.logger.info("No focus element in the queue! returning same config")
                 return config
             focus, *remaining_queue = config.queue  # unpack the queue
-            result = self.lc(rule, focus)
+            result = self.lc(rule, focus, var=var)
             new_pos, new_input = config.current_pos, config.remaining_input
             updated_queue = remaining_queue
 
@@ -237,7 +265,7 @@ class LCParser:
         result = Expression(pos, new_pos, '::', fs, [])
         return Term(result), new_pos, new_input
 
-    def lc(self, rule : LCRule, focus : Term) -> Term:
+    def lc(self, rule : LCRule, focus : Term, var=None) -> Term:
         """
         Apply the appropriate LC rule to the focus element.
         :param rule: The LC rule to apply.
@@ -264,7 +292,7 @@ class LCParser:
                 return self.lc1_move2(focus)
         elif rule.lc_rule == 'lc2':
             if rule.inner_part == 'merge2':
-                return self.lc2_merge2(exp)
+                return self.lc2_merge2(exp, var=var)
             elif rule.inner_part == 'merge3':
                 return self.lc2_merge3(exp)
 
@@ -316,7 +344,19 @@ class LCParser:
         return Term(A)
 
 
-    def lc2_merge2(self, C : Expression) -> Term:
+    def get_gammas_for_feature(self, selectee):
+        gammas = []
+        selector = Feature(selectee, "=")
+        for item in self.grammar.lexicon:
+            ind = item.get_last_index(selector)
+            if ind != -1:
+                g = item.features[ind + 1:][0]
+                if g not in gammas:
+                    gammas.append(g)
+        return gammas
+
+
+    def lc2_merge2(self, C : Expression, var=None) -> Term:
         """
         t (Left, Mid, _, [F], Iotas),
         ( s ( Mid, Right, ':',  [=F|Gamma], Alphas) -> ts (Left, Right, ':', Gamma, Movers) ))
@@ -328,7 +368,7 @@ class LCParser:
         # Extract the feature being selected
         f = C.features[0].feature  # take 'f'
         iotas = C.movers
-        gamma = [Feature('v')] # TODO: should be taken from a rule in the grammar
+        gamma = [var]
         alphas = [CHAIN_EXPRESSION]
         movers = alphas + iotas
 
@@ -394,7 +434,7 @@ class LCParser:
             if left and term.exp == exp:
                 return term
             # found on right side
-            if term.output_exp == exp:
+            if (not left) and term.output_exp == exp:
                 return term
         return None
 
