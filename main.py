@@ -10,9 +10,11 @@ def test_g1(manual=False):
     parser = LCParser(g1)
     input1 = ['Aca', 'knows', 'what', 'Bibi', 'likes']
     input2 = ['Bibi', 'likes', 'Aca']
+    input3 = ['Aca', 'likes', 'Bibi', 'and', 'Bibi', 'likes', 'Aca']
     if manual:
-        test_g1_input1_manual(parser, input1)
-        test_g1_input2_manual(parser, input2)
+        # test_g1_input1_manual(parser, input1)
+        # test_g1_input2_manual(parser, input2)
+        test_g1_input3_manual(parser, input3)
     else:
         test_g1_input(parser, input1)
         test_g1_input(parser, input2)

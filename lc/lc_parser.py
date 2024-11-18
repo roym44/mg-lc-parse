@@ -79,7 +79,7 @@ class LCParser:
             config, applied_rules = stack.pop()
             config_count += 1
             count = len(applied_rules)
-            self.logger.error(f"Popping {config} No.{config_count} with {count} applied rules {applied_rules}")
+            self.logger.error(f"Popping config No.{config_count} with {count} applied rules {applied_rules}: {config}")
             if self.is_success(config):
                 results.append((config, applied_rules))
                 continue
