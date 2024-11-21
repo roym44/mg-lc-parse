@@ -130,6 +130,7 @@ class LCParser:
                 # Skip the empty-shift rule if it has already been applied
                 if rule.is_empty_shift() and rule in applied_rules:
                     self.logger.info(f"Skipping rule: {rule} as it has already been applied!")
+                    # TODO: relax this condition to allow multiple empty-shift rules (Input 3)
                     continue
 
                 if applied_rules and (rule.is_empty_shift() or rule.is_shift()) and \
@@ -171,6 +172,7 @@ class LCParser:
         Applies a parsing rule to the current configuration.
         :param rule: The rule to apply.
         :param config: The current parser state.
+        :param var: Optional variable for extended functionality of the rule.
         :return: Updated configuration after applying the rule.
         """
         self.logger.info(f"Got rule: {rule}, config: {config}, with var={var}")

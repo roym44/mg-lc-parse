@@ -23,9 +23,6 @@ class MG:
             data = json.load(file)
         self.parse_json(data)
 
-        # Compute the link relations
-        self.compute_link_relations()
-
     def parse_json(self, data):
         """
         Parses the given JSON data into the grammar object
@@ -55,9 +52,5 @@ class MG:
         return f"Lexicon: {self.lexicon}\nRules: {self.rules}"
 
     def compute_link_relations(self):
-        pass
+        raise NotImplementedError()
 
-
-if __name__ == '__main__':
-    g1 = MG('../input/g1.json')
-    print(g1)
